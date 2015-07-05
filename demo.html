@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<script type="text/javascript" src="grapheme-splitter.js"></script>
+    
+  </head>
+    <body>
+
+  <script type="text/javascript">
+		 
+function htmlEncode(str) { 
+    return String(str) 
+        .replace(/&/g, '&amp;') 
+        .replace(/"/g, '&quot;') 
+        .replace(/'/g, '&#39;') 
+        .replace(/</g, '&lt;') 
+        .replace(/>/g, '&gt;'); 
+}
+function zeroPad(num, size) {
+    var s = num+"";
+    while (s.length < size){
+        s = "0" + s;
+    }
+    return s;
+}
+
+function log(str){
+    document.write("<pre>"+htmlEncode(str)+"</pre>");
+}
+
+var tests = [
+    {
+	  original:"L\u0301o\u0342r\u030Ce\u1DD2m\u0305", 
+	  expected:["Ĺ","o͂","ř","e᷒","m̅"], 
+	  description: "diacritics as combining marks"
+	},
+    {
+	  original:"अनुच्छेद", 
+	  expected:["अ","नु","च्","छे","द"], 
+	  description: "Hindi text with combining marks"
+	},
+    {
+	  original:"\u1103\u1167\u1109\u1170", 
+	  expected:["뎌","쉐"], 
+	  description: "individual Korean characters (Jamo)"
+	},
+    {
+	  original:"🌷🎁💩😜👍🇺🇸",
+	  expected:["🌷","🎁","💩","😜","👍","🇺🇸"], 
+	  description: "two-char emojis and four-char regional indicator"
+	},
+    {
+	  original:"Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍A̴̵̜̰͔ͫ͗͢L̠ͨͧͩ͘G̴̻͈͍͔̹̑͗̎̅͛́Ǫ̵̹̻̝̳͂̌̌͘!͖̬̰̙̗̿̋ͥͥ̂ͣ̐́́͜͞", 
+	  expected:["Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍","A̴̵̜̰͔ͫ͗͢","L̠ͨͧͩ͘","G̴̻͈͍͔̹̑͗̎̅͛́","Ǫ̵̹̻̝̳͂̌̌͘","!͖̬̰̙̗̿̋ͥͥ̂ͣ̐́́͜͞"], 
+	  description: "demonic multiple combining marks"
+	},
+    {
+	  original:"Ľöřêm", 
+	  expected:["Ľ","ö","ř","ê","m"], 
+	  description: "pre-composed one-char Latin diacritical letters"
+	},
+    {
+	  original:"알레르기", 
+	  expected:["알","레","르","기"], 
+	  description: "pre-composed one-char Korean syllables"
+	},
+    {
+	  original:"Lorem експеримент πείραμα", 
+	  expected:["L","o","r","e","m", " ","е","к","с","п","е","р","и","м","е","н","т"," ","π","ε","ί","ρ","α","μ","α"], 
+	  description: "sanity check with spaces"
+	},];
+
+var splitter = new GraphemeSplitter();
+
+for(var i = 0; i < tests.length; i++){
+    var test = tests[i];
+	
+	//split the string to an array of grapheme clusters
+    var graphemes = splitter.splitGraphemes(test.original);
+	
+	//or do this if you just need their number
+	var graphemeCount = splitter.countGraphemes(test.original);
+    
+	log("TEST "+i+": "+test.description);
+    log("original: "+test.original);
+    log("graphemes ("+graphemeCount+"):"+ graphemes.join(" + "));
+    log("characters ("+test.original.length+"):"+test.original.split("").join(" + "));
+    log("character codes: "+test.original.split("").map(function(char){return "\\u"+zeroPad(char.charCodeAt(0).toString(16), 4).toUpperCase();}).join("  "));
+		
+    var pass = true;
+    if(graphemes.length != test.expected.length ||
+	    graphemes.length != graphemeCount){
+        pass = false;
+    }
+    for(var j = 0; j < graphemes.length; j++){
+        if(graphemes[j] != test.expected[j]){
+		    alert(graphemes[j] +" != "+test.expected[j]);
+            pass = false;
+        }
+    }
+    if(!pass){
+        alert("Test "+i+" failed!!!");
+    }
+    else{
+        log("test "+i+" passed successfully");
+	}
+	log("------------------");
+}
+  </script>
+
+    </body>
+</html>
