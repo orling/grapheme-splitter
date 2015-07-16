@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+  <head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+	<script src="http://code.jquery.com/jquery-2.1.4.min.js"></script>
+	<script type="text/javascript" src="../grapheme-splitter.js"></script>
+
+  </head>
+  <body>
+	
+<script type="text/javascript">
+
+function htmlEncode(str) { 
+    return String(str) 
+        .replace(/&/g, '&amp;') 
+        .replace(/"/g, '&quot;') 
+        .replace(/'/g, '&#39;') 
+        .replace(/</g, '&lt;') 
+        .replace(/>/g, '&gt;'); 
+}
+
+function log(str){
+    document.write("<pre>"+htmlEncode(str)+"</pre>");
+}
+
+
+function ucs2encode(array) {
+  return array.map(function(value,_,_) {
+    var output = '';
+    if (value > 0xFFFF) {
+	  value -= 0x10000;
+	  output += String.fromCharCode(value >>> 10 & 0x3FF | 0xD800);
+	  value = 0xDC00 | value & 0x3FF;
+    }
+	output += String.fromCharCode(value);
+	return output;
+  }).join('');
+}
+
+//Test file downloaded from http://unicode.org/Public/8.0.0/ucd/auxiliary/GraphemeBreakTest.txt
+//Must be present locally because of AJAX cross-domain request restriction.
+//Keep it up-to-date as new Unicode versions are published
+$.get("GraphemeBreakTest.txt", function(text){
+  var lines = text.split('\n')
+  var splitter = new GraphemeSplitter();
+  var errorsExist = false;
+  for(var i = 0; i < lines.length; i++){
+    var line = lines[i];
+	
+	//skip empty or commented out lines
+    if(line == null ||
+	  line.length == 0 || 
+	  /^#/.test(line)){
+	  continue;
+	}
+	
+	//get the test data, before the comment
+    var test = line.split('#')[0];
+	
+	//get the Unicode codepoints in this test
+    var codePoints = test.split(/\s*[×÷]\s*/).map(function(code, _, _){
+	  return parseInt(code, 16)
+	});
+	
+	//make a string of the test data
+    var str = ucs2encode(codePoints);
+    
+	//get the expected result from splitting the test string along 
+	//grapheme cluster boundaries: an array of strings
+    var expected = test.split(/\s*÷\s*/).map (function(sequence,_,_){
+      var codepoints = sequence.split(/\s*×\s*/).map(function(c,_,_){
+        return parseInt(c, 16);
+      });
+      return ucs2encode(codepoints);
+    });
+	
+	//run the grapheme splitter on the test string
+	var graphemes = splitter.splitGraphemes(str);
+	
+	var failedTest = false;
+	
+	//check if the result length is correct
+	if(graphemes.length != expected.length ||
+	  splitter.countGraphemes(str) != expected.length){
+	  log("FAILED at test on line "+(i+1));
+	  failedTest = true;
+	}
+	else{
+	  //check the expected with the result, grapheme by grapheme
+      for(var j = 0; j < graphemes.length; j++){
+	    if(graphemes[j] != expected[j]){
+	      log("FAILED ENCODING at test on line "+(i+1)+": "+test);
+		  failedTest = true;
+		  break;
+	    }
+	  }
+    }
+	
+	errorsExist |= failedTest;
+	
+	if(failedTest){
+	  alert("failed test on line "+(i+1)+": "+test);
+	}
+    else{
+	  log("passed test on line "+(i+1)+": "+test);
+	}
+  }//for each line
+  
+  alert("testing finished "+(errorsExist?"with errors":"successfully"));
+}, "text");
+
+</script>
+
+  </body>
+</html>
