@@ -4,13 +4,17 @@ In JavaScript there is not always a one-to-one relationship between string chara
 
 For example, emoji characters like "🌷","🎁","💩","😜" and "👍" are represented by two JavaScript characters each (high surrogate and low surrogate). That is, 
 
-    "🌷".length == 2
+```javascript
+"🌷".length == 2
+```
 
 What's more, some languages often include combining marks - characters that are used to modify the letters before them. Common examples are the German letter ü and the Spanish letter ñ. Sometimes they can be represented alternatively both as a single character and as a letter + combining mark, with both forms equally valid:
     
-    var two = "ñ";//unnormalized two-char n+◌̃  , i.e. "\u006E\u0303";
-    var one = "ñ";//normalized single-char, i.e. "\u00F1"
-    console.log(one==two);//prints 'false'
+```javascript
+var two = "ñ"; // unnormalized two-char n+◌̃  , i.e. "\u006E\u0303";
+var one = "ñ"; // normalized single-char, i.e. "\u00F1"
+console.log(one==two); // prints 'false'
+```
 
 Unicode normalization, as performed by the popular punycode.js library or ECMAScript 6's String.normalize, can **sometimes** fix those differences and turn two-char sequences into single characters. But it is **not** enough in all cases. Some languages like Hindi make extensive use of combining marks on their letters, that have no dedicated single-codepoint Unicode sequences, due to the sheer number of possible combinations.
 For example, the Hindi word "अनुच्छेद" is comprised of 5 letters and 3 combining marks:
@@ -30,20 +34,24 @@ Enter the grapheme-splitter.js library. It can be used to properly split JavaScr
 
 Just include the grapheme-splitter.js file, for example like this:
 
-    <script type="text/javascript" src="grapheme-splitter.js"></script>
+```html
+<script type="text/javascript" src="grapheme-splitter.js"></script>
+```
 
 # Usage
 
 Just initialize and use:
 
-    var splitter = new GraphemeSplitter();
-    
-    //split the string to an array of grapheme clusters (one string each)
-    var graphemes = splitter.splitGraphemes(string);
-	
-    //or do this if you just need their number
-    var graphemeCount = splitter.countGraphemes(string);
-    
+```javascript
+var splitter = new GraphemeSplitter();
+
+// split the string to an array of grapheme clusters (one string each)
+var graphemes = splitter.splitGraphemes(string);
+
+// or do this if you just need their number
+var graphemeCount = splitter.countGraphemes(string);
+```
+
 # Acknowledgements
 
 This library is heavily influenced by Devon Govett's excellent grapheme-breaker CoffeeScript library at https://github.com/devongovett/grapheme-breaker with an emphasis on ease of integration and pure JavaScript implementation.
