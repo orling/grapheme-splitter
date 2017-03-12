@@ -26,7 +26,7 @@ which is in fact just 5 user-perceived letters:
 अ + नु + च् + छे + द
 
 and which Unicode normalization would not combine properly.
-There are also the unusual letter+combining mark combinations which have no dedicated Unicode codepoint. The string Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍A̴̵̜̰͔ͫ͗͢L̠ͨͧͩ͘G̴̻͈͍͔̹̑͗̎̅͛́Ǫ̵̹̻̝̳͂̌̌͘!͖̬̰̙̗̿̋ͥͥ̂ͣ̐́́͜͞ obviously has 6 separate letters, but is in fact comprised of 75 JavaScript characters, most of which are combining marks.
+There are also the unusual letter+combining mark combinations which have no dedicated Unicode codepoint. The string Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍A̴̵̜̰͔ͫ͗͢L̠ͨͧͩ͘G̴̻͈͍͔̹̑͗̎̅͛́Ǫ̵̹̻̝̳͂̌̌͘ obviously has 5 separate letters, but is in fact comprised of 58 JavaScript characters, most of which are combining marks.
 
 Enter the grapheme-splitter.js library. It can be used to properly split JavaScript strings into what a human user would call separate letters (or "extended grapheme clusters" in Unicode terminology), no matter what their internal representation is. It is an implementation of the Unicode UAX-29 standard. 
 
