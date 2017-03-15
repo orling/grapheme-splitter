@@ -1503,3 +1503,5 @@ function GraphemeSplitter(){
 	}
 	return this;
 }
+
+module.exports = GraphemeSplitter
