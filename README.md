@@ -13,7 +13,7 @@ What's more, some languages often include combining marks - characters that are 
 ```javascript
 var two = "ñ"; // unnormalized two-char n+◌̃  , i.e. "\u006E\u0303";
 var one = "ñ"; // normalized single-char, i.e. "\u00F1"
-console.log(one==two); // prints 'false'
+console.log(one!=two); // prints 'true'
 ```
 
 Unicode normalization, as performed by the popular punycode.js library or ECMAScript 6's String.normalize, can **sometimes** fix those differences and turn two-char sequences into single characters. But it is **not** enough in all cases. Some languages like Hindi make extensive use of combining marks on their letters, that have no dedicated single-codepoint Unicode sequences, due to the sheer number of possible combinations.
@@ -58,6 +58,30 @@ var graphemes = splitter.splitGraphemes(string);
 
 // or do this if you just need their number
 var graphemeCount = splitter.countGraphemes(string);
+```
+
+# Examples
+
+```javascript
+var splitter = new GraphemeSplitter();
+
+// plain latin alphabet - nothing spectacular
+splitter.splitGraphemes("abcd"); // returns ["a", "b", "c", "d"]
+
+// two-char emojis and four-char country flag
+splitter.splitGraphemes("🌷🎁💩😜👍🇺🇸"); // returns ["🌷","🎁","💩","😜","👍","🇺🇸"]
+
+// diacritics as combining marks, 10 JavaScript chars
+splitter.splitGraphemes("Ĺo͂ře᷒m̅"); // returns ["Ĺ","o͂","ř","e᷒","m̅"]
+
+// individual Korean characters (Jamo), 4 JavaScript chars
+splitter.splitGraphemes("뎌쉐"); // returns ["뎌","쉐"]
+
+// Hindi text with combining marks, 8 JavaScript chars
+splitter.splitGraphemes("अनुच्छेद"); // returns ["अ","नु","च्","छे","द"]
+
+// demonic multiple combining marks, 75 JavaScript chars
+splitter.splitGraphemes("Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍A̴̵̜̰͔ͫ͗͢L̠ͨͧͩ͘G̴̻͈͍͔̹̑͗̎̅͛́Ǫ̵̹̻̝̳͂̌̌͘!͖̬̰̙̗̿̋ͥͥ̂ͣ̐́́͜͞"); // returns ["Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍","A̴̵̜̰͔ͫ͗͢","L̠ͨͧͩ͘","G̴̻͈͍͔̹̑͗̎̅͛́","Ǫ̵̹̻̝̳͂̌̌͘","!͖̬̰̙̗̿̋ͥͥ̂ͣ̐́́͜͞"]
 ```
 
 # Acknowledgements
