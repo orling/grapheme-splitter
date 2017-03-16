@@ -32,10 +32,18 @@ Enter the grapheme-splitter.js library. It can be used to properly split JavaScr
 
 # Installation
 
-Just include the grapheme-splitter.js file, for example like this:
+To install `grapheme-splitter` to your project, use the NPM command below:
 
-```html
-<script type="text/javascript" src="grapheme-splitter.js"></script>
+```
+$ npm install --save grapheme-splitter
+```
+
+# Tests
+
+To run the tests on `grapheme-splitter`, use the command below:
+
+```
+$ npm test
 ```
 
 # Usage
