@@ -32,7 +32,7 @@ Enter the grapheme-splitter.js library. It can be used to properly split JavaScr
 
 # Installation
 
-To install `grapheme-splitter` to your project, use the NPM command below:
+You can use the index.js file directly as-is. Or you you can install `grapheme-splitter` to your project using the NPM command below:
 
 ```
 $ npm install --save @naytev/grapheme-splitter
@@ -68,11 +68,11 @@ var splitter = new GraphemeSplitter();
 // plain latin alphabet - nothing spectacular
 splitter.splitGraphemes("abcd"); // returns ["a", "b", "c", "d"]
 
-// two-char emojis and four-char country flag
-splitter.splitGraphemes("🌷🎁💩😜👍🇺🇸"); // returns ["🌷","🎁","💩","😜","👍","🇺🇸"]
+// two-char emojis and six-char combined emoji
+splitter.splitGraphemes("🌷🎁💩😜👍🏳️‍🌈"); // returns ["🌷","🎁","💩","😜","👍","🏳️‍🌈"]
 
 // diacritics as combining marks, 10 JavaScript chars
-splitter.splitGraphemes("Ĺo͂ře᷒m̅"); // returns ["Ĺ","o͂","ř","e᷒","m̅"]
+splitter.splitGraphemes("Ĺo͂řȩm̅"); // returns ["Ĺ","o͂","ř","ȩ","m̅"]
 
 // individual Korean characters (Jamo), 4 JavaScript chars
 splitter.splitGraphemes("뎌쉐"); // returns ["뎌","쉐"]
