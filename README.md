@@ -7,6 +7,10 @@ For example, emoji characters like "🌷","🎁","💩","😜" and "👍" are re
 ```javascript
 "🌷".length == 2
 ```
+The combined emoji are even longer:
+```javascript
+"🏳️‍🌈".length == 6
+```
 
 What's more, some languages often include combining marks - characters that are used to modify the letters before them. Common examples are the German letter ü and the Spanish letter ñ. Sometimes they can be represented alternatively both as a single character and as a letter + combining mark, with both forms equally valid:
     
