@@ -1,6 +1,6 @@
 /*
 Breaks a Javascript string into individual user-perceived "characters" 
-called extended grapheme clusters by implementing the Unicode UAX-29 standard, version 8.0.0
+called extended grapheme clusters by implementing the Unicode UAX-29 standard, version 10.0.0
 
 Usage:
 var splitter = new GraphemeSplitter();
@@ -239,8 +239,8 @@ function GraphemeSplitter(){
 	//given a Unicode code point, determines this symbol's grapheme break property
 	function getGraphemeBreakProperty(code){
 		
-		//grapheme break property for Unicode 8.0.0, 
-		//taken from http://www.unicode.org/Public/8.0.0/ucd/auxiliary/GraphemeBreakProperty.txt
+		//grapheme break property for Unicode 10.0.0, 
+		//taken from http://www.unicode.org/Public/10.0.0/ucd/auxiliary/GraphemeBreakProperty.txt
 		//and adapted to JavaScript rules
 		
 		if(		
