@@ -20,7 +20,25 @@ function GraphemeSplitter(){
 		T = 8,
 		LV = 9,
 		LVT = 10,
-		Other = 11;
+		Other = 11,
+		Prepend = 12,
+		E_Base = 13,
+		E_Modifier = 14,
+		ZWJ = 15,
+		Glue_After_Zwj = 16,
+		E_Base_GAZ = 17;
+		
+	// BreakTypes
+	var NotBreak = 0,
+		BreakStart = 1,
+		Break = 2,
+		BreakLastRegional = 3,
+		BreakPenultimateRegional = 4;
+		
+	function isSurrogate(str, pos) {
+		return  0xd800 <= str.charCodeAt(pos) && str.charCodeAt(pos) <= 0xdbff && 
+				0xdc00 <= str.charCodeAt(pos + 1) && str.charCodeAt(pos + 1) <= 0xdfff;
+	}
 		
 	// Private function, gets a Unicode code point from a JavaScript UTF-16 string
 	// handling surrogate pairs appropriately
@@ -28,7 +46,7 @@ function GraphemeSplitter(){
 		if(idx === undefined){
 			idx = 0;
 		}
-		code = str.charCodeAt(idx);
+		var code = str.charCodeAt(idx);
 
 		// if a high surrogate
 		if (0xD800 <= code && code <= 0xDBFF && 
@@ -57,56 +75,108 @@ function GraphemeSplitter(){
 		return code;
 	}
 	
-	// Private function, eturns whether a break is allowed between the 
+	// Private function, returns whether a break is allowed between the 
 	// two given grapheme breaking classes
-	function shouldBreak(previous, current){
+	function shouldBreak(start, mid, end){
+		var all = [start].concat(mid).concat([end]);
+		var previous = all[all.length - 2]
+		var next = end
+		
+		// Lookahead termintor for:
+		// GB10. (E_Base | EBG) Extend* ?	E_Modifier
+		var eModifierIndex = all.lastIndexOf(E_Modifier)
+		if(eModifierIndex > 1 &&
+			all.slice(1, eModifierIndex).every(function(c){return c == Extend}) &&
+			[Extend, E_Base, E_Base_GAZ].indexOf(start) == -1){
+			return Break
+		}
+
+		// Lookahead termintor for:
+		// GB12. ^ (RI RI)* RI	?	RI
+		// GB13. [^RI] (RI RI)* RI	?	RI
+		var rIIndex = all.lastIndexOf(Regional_Indicator)
+		if(rIIndex > 0 &&
+			all.slice(1, rIIndex).every(function(c){return c == Regional_Indicator}) &&
+			[Prepend, Regional_Indicator].indexOf(previous) == -1) { 
+			if(all.filter(function(c){return c == Regional_Indicator}).length % 2 == 1) {
+				return BreakLastRegional
+			}
+			else {
+				return BreakPenultimateRegional
+			}
+		}
+		
 		// GB3. CR X LF
-		if(previous == CR && current == LF){
-			return false;
+		if(previous == CR && next == LF){
+			return NotBreak;
 		}
 		// GB4. (Control|CR|LF) ÷
 		else if(previous == Control || previous == CR || previous == LF){
-			return true;
+			if(next == E_Modifier && mid.every(function(c){return c == Extend})){
+				return Break
+			}
+			else {
+				return BreakStart
+			}
 		}
 		// GB5. ÷ (Control|CR|LF)
-		else if(current == Control || current == CR || current == LF){
-			return true;
+		else if(next == Control || next == CR || next == LF){
+			return BreakStart;
 		}
 		// GB6. L X (L|V|LV|LVT)
 		else if(previous == L && 
-			(current == L || current == V || current == LV || current == LVT)){
-			return false;
+			(next == L || next == V || next == LV || next == LVT)){
+			return NotBreak;
 		}
 		// GB7. (LV|V) X (V|T)
 		else if((previous == LV || previous == V) && 
-			(current == V || current == T)){
-			return false;
+			(next == V || next == T)){
+			return NotBreak;
 		}
 		// GB8. (LVT|T) X (T)
 		else if((previous == LVT || previous == T) && 
-			current == T){
-			return false;
+			next == T){
+			return NotBreak;
 		}
-		// GB8a. Regional_Indicator X Regional_Indicator
-		else if(previous == Regional_Indicator && current == Regional_Indicator){
-			return false;
-		}
-		// GB9. X Extend
-		else if (current == Extend){
-			return false;
+		// GB9. X (Extend|ZWJ)
+		else if (next == Extend || next == ZWJ){
+			return NotBreak;
 		}
 		// GB9a. X SpacingMark
-		else if(current == SpacingMark){
-			return false;
+		else if(next == SpacingMark){
+			return NotBreak;
 		}
-		// GB9b. Prepend X (there are currently no characters with this class)
-		// else if previous is Prepend
-		//   return false
+		// GB9b. Prepend X
+		else if (previous == Prepend){
+			return NotBreak;
+		}
 		
-		// GB10. Any ÷ Any
-		return true;
-	}
+		// GB10. (E_Base | EBG) Extend* ?	E_Modifier
+		var previousNonExtendIndex = all.indexOf(Extend) != -1 ? all.lastIndexOf(Extend) - 1 : all.length - 2;
+		if([E_Base, E_Base_GAZ].indexOf(all[previousNonExtendIndex]) != -1 &&
+			all.slice(previousNonExtendIndex + 1, -1).every(function(c){return c == Extend}) &&
+			next == E_Modifier){
+			return NotBreak;
+		}
+		
+		// GB11. ZWJ ? (Glue_After_Zwj | EBG)
+		if(previous == ZWJ && [Glue_After_Zwj, E_Base_GAZ].indexOf(next) != -1) {
+			return NotBreak;
+		}
 
+		// GB12. ^ (RI RI)* RI ? RI
+		// GB13. [^RI] (RI RI)* RI ? RI
+		if(mid.indexOf(Regional_Indicator) != -1) { 
+			return Break;
+		}
+		if(previous == Regional_Indicator && next == Regional_Indicator) {
+			return NotBreak;
+		}
+
+		// GB999. Any ? Any
+		return BreakStart;
+	}
+	
 	// Returns the next grapheme break in the string after the given index
 	this.nextBreak = function(string, index){
 		if(index === undefined){
@@ -119,19 +189,19 @@ function GraphemeSplitter(){
 			return string.length;
 		}
 		var prev = getGraphemeBreakProperty(codePointAt(string, index));
+		var mid = []
 		for (var i = index + 1; i < string.length; i++) {
 			// check for already processed low surrogates
-			if(0xd800 <= string.charCodeAt(i - 1) && string.charCodeAt(i - 1) <= 0xdbff &&
-				0xdc00 <= string.charCodeAt(i) && string.charCodeAt(i) <= 0xdfff){
+			if(isSurrogate(string, i - 1)){
 				continue;
 			}
 		
 			var next = getGraphemeBreakProperty(codePointAt(string, i));
-			if(shouldBreak(prev, next)){
+			if(shouldBreak(prev, mid, next)){
 				return i;
 			}
 			
-			prev = next;
+			mid.push(next);
 		}
 		return string.length;
 	};
@@ -173,6 +243,20 @@ function GraphemeSplitter(){
 		//taken from http://www.unicode.org/Public/8.0.0/ucd/auxiliary/GraphemeBreakProperty.txt
 		//and adapted to JavaScript rules
 		
+		if(		
+		(0x0600 <= code && code <= 0x0605) || // Cf   [6] ARABIC NUMBER SIGN..ARABIC NUMBER MARK ABOVE
+		0x06DD == code || // Cf       ARABIC END OF AYAH
+		0x070F == code || // Cf       SYRIAC ABBREVIATION MARK
+		0x08E2 == code || // Cf       ARABIC DISPUTED END OF AYAH
+		0x0D4E == code || // Lo       MALAYALAM LETTER DOT REPH
+		0x110BD == code || // Cf       KAITHI NUMBER SIGN
+		(0x111C2 <= code && code <= 0x111C3) || // Lo   [2] SHARADA SIGN JIHVAMULIYA..SHARADA SIGN UPADHMANIYA
+		0x11A3A == code || // Lo       ZANABAZAR SQUARE CLUSTER-INITIAL LETTER RA
+		(0x11A86 <= code && code <= 0x11A89) || // Lo   [4] SOYOMBO CLUSTER-INITIAL LETTER RA..SOYOMBO CLUSTER-INITIAL LETTER SA
+		0x11D46 == code // Lo       MASARAM GONDI REPHA
+		){
+			return Prepend;
+		}
 		if(
 		0x000D == code // Cc       <control-000D>
 		){
@@ -192,10 +276,8 @@ function GraphemeSplitter(){
 		(0x000E <= code && code <= 0x001F) || // Cc  [18] <control-000E>..<control-001F>
 		(0x007F <= code && code <= 0x009F) || // Cc  [33] <control-007F>..<control-009F>
 		0x00AD == code || // Cf       SOFT HYPHEN
-		(0x0600 <= code && code <= 0x0605) || // Cf   [6] ARABIC NUMBER SIGN..ARABIC NUMBER MARK ABOVE
 		0x061C == code || // Cf       ARABIC LETTER MARK
-		0x06DD == code || // Cf       ARABIC END OF AYAH
-		0x070F == code || // Cf       SYRIAC ABBREVIATION MARK
+	
 		0x180E == code || // Cf       MONGOLIAN VOWEL SEPARATOR
 		0x200B == code || // Cf       ZERO WIDTH SPACE
 		(0x200E <= code && code <= 0x200F) || // Cf   [2] LEFT-TO-RIGHT MARK..RIGHT-TO-LEFT MARK
@@ -209,13 +291,11 @@ function GraphemeSplitter(){
 		0xFEFF == code || // Cf       ZERO WIDTH NO-BREAK SPACE
 		(0xFFF0 <= code && code <= 0xFFF8) || // Cn   [9] <reserved-FFF0>..<reserved-FFF8>
 		(0xFFF9 <= code && code <= 0xFFFB) || // Cf   [3] INTERLINEAR ANNOTATION ANCHOR..INTERLINEAR ANNOTATION TERMINATOR
-		0x110BD == code || // Cf       KAITHI NUMBER SIGN
 		(0x1BCA0 <= code && code <= 0x1BCA3) || // Cf   [4] SHORTHAND FORMAT LETTER OVERLAP..SHORTHAND FORMAT UP STEP
 		(0x1D173 <= code && code <= 0x1D17A) || // Cf   [8] MUSICAL SYMBOL BEGIN BEAM..MUSICAL SYMBOL END PHRASE
 		0xE0000 == code || // Cn       <reserved-E0000>
 		0xE0001 == code || // Cf       LANGUAGE TAG
 		(0xE0002 <= code && code <= 0xE001F) || // Cn  [30] <reserved-E0002>..<reserved-E001F>
-		(0xE0020 <= code && code <= 0xE007F) || // Cf  [96] TAG SPACE..CANCEL TAG
 		(0xE0080 <= code && code <= 0xE00FF) || // Cn [128] <reserved-E0080>..<reserved-E00FF>
 		(0xE01F0 <= code && code <= 0xE0FFF) // Cn [3600] <reserved-E01F0>..<reserved-E0FFF>
 		){
@@ -248,6 +328,7 @@ function GraphemeSplitter(){
 		(0x0825 <= code && code <= 0x0827) || // Mn   [3] SAMARITAN VOWEL SIGN SHORT A..SAMARITAN VOWEL SIGN U
 		(0x0829 <= code && code <= 0x082D) || // Mn   [5] SAMARITAN VOWEL SIGN LONG I..SAMARITAN MARK NEQUDAA
 		(0x0859 <= code && code <= 0x085B) || // Mn   [3] MANDAIC AFFRICATION MARK..MANDAIC GEMINATION MARK
+		(0x08D4 <= code && code <= 0x08E1) || // Mn  [14] ARABIC SMALL HIGH WORD AR-RUB..ARABIC SMALL HIGH SIGN SAFHA
 		(0x08E3 <= code && code <= 0x0902) || // Mn  [32] ARABIC TURNED DAMMA BELOW..DEVANAGARI SIGN ANUSVARA
 		0x093A == code || // Mn       DEVANAGARI VOWEL SIGN OE
 		0x093C == code || // Mn       DEVANAGARI SIGN NUKTA
@@ -276,6 +357,7 @@ function GraphemeSplitter(){
 		(0x0AC7 <= code && code <= 0x0AC8) || // Mn   [2] GUJARATI VOWEL SIGN E..GUJARATI VOWEL SIGN AI
 		0x0ACD == code || // Mn       GUJARATI SIGN VIRAMA
 		(0x0AE2 <= code && code <= 0x0AE3) || // Mn   [2] GUJARATI VOWEL SIGN VOCALIC L..GUJARATI VOWEL SIGN VOCALIC LL
+		(0x0AFA <= code && code <= 0x0AFF) || // Mn   [6] GUJARATI SIGN SUKUN..GUJARATI SIGN TWO-CIRCLE NUKTA ABOVE
 		0x0B01 == code || // Mn       ORIYA SIGN CANDRABINDU
 		0x0B3C == code || // Mn       ORIYA SIGN NUKTA
 		0x0B3E == code || // Mc       ORIYA VOWEL SIGN AA
@@ -304,7 +386,8 @@ function GraphemeSplitter(){
 		(0x0CCC <= code && code <= 0x0CCD) || // Mn   [2] KANNADA VOWEL SIGN AU..KANNADA SIGN VIRAMA
 		(0x0CD5 <= code && code <= 0x0CD6) || // Mc   [2] KANNADA LENGTH MARK..KANNADA AI LENGTH MARK
 		(0x0CE2 <= code && code <= 0x0CE3) || // Mn   [2] KANNADA VOWEL SIGN VOCALIC L..KANNADA VOWEL SIGN VOCALIC LL
-		0x0D01 == code || // Mn       MALAYALAM SIGN CANDRABINDU
+		(0x0D00 <= code && code <= 0x0D01) || // Mn   [2] MALAYALAM SIGN COMBINING ANUSVARA ABOVE..MALAYALAM SIGN CANDRABINDU
+		(0x0D3B <= code && code <= 0x0D3C) || // Mn   [2] MALAYALAM SIGN VERTICAL BAR VIRAMA..MALAYALAM SIGN CIRCULAR VIRAMA
 		0x0D3E == code || // Mc       MALAYALAM VOWEL SIGN AA
 		(0x0D41 <= code && code <= 0x0D44) || // Mn   [4] MALAYALAM VOWEL SIGN U..MALAYALAM VOWEL SIGN VOCALIC RR
 		0x0D4D == code || // Mn       MALAYALAM SIGN VIRAMA
@@ -354,6 +437,7 @@ function GraphemeSplitter(){
 		(0x17C9 <= code && code <= 0x17D3) || // Mn  [11] KHMER SIGN MUUSIKATOAN..KHMER SIGN BATHAMASAT
 		0x17DD == code || // Mn       KHMER SIGN ATTHACAN
 		(0x180B <= code && code <= 0x180D) || // Mn   [3] MONGOLIAN FREE VARIATION SELECTOR ONE..MONGOLIAN FREE VARIATION SELECTOR THREE
+		(0x1885 <= code && code <= 0x1886) || // Mn   [2] MONGOLIAN LETTER ALI GALI BALUDA..MONGOLIAN LETTER ALI GALI THREE BALUDA
 		0x18A9 == code || // Mn       MONGOLIAN LETTER ALI GALI DAGALGA
 		(0x1920 <= code && code <= 0x1922) || // Mn   [3] LIMBU VOWEL SIGN A..LIMBU VOWEL SIGN U
 		(0x1927 <= code && code <= 0x1928) || // Mn   [2] LIMBU VOWEL SIGN E..LIMBU VOWEL SIGN O
@@ -392,9 +476,9 @@ function GraphemeSplitter(){
 		0x1CED == code || // Mn       VEDIC SIGN TIRYAK
 		0x1CF4 == code || // Mn       VEDIC TONE CANDRA ABOVE
 		(0x1CF8 <= code && code <= 0x1CF9) || // Mn   [2] VEDIC TONE RING ABOVE..VEDIC TONE DOUBLE RING ABOVE
-		(0x1DC0 <= code && code <= 0x1DF5) || // Mn  [54] COMBINING DOTTED GRAVE ACCENT..COMBINING UP TACK ABOVE
-		(0x1DFC <= code && code <= 0x1DFF) || // Mn   [4] COMBINING DOUBLE INVERTED BREVE BELOW..COMBINING RIGHT ARROWHEAD AND DOWN ARROWHEAD BELOW
-		(0x200C <= code && code <= 0x200D) || // Cf   [2] ZERO WIDTH NON-JOINER..ZERO WIDTH JOINER
+		(0x1DC0 <= code && code <= 0x1DF9) || // Mn  [58] COMBINING DOTTED GRAVE ACCENT..COMBINING WIDE INVERTED BRIDGE BELOW
+		(0x1DFB <= code && code <= 0x1DFF) || // Mn   [5] COMBINING DELETION MARK..COMBINING RIGHT ARROWHEAD AND DOWN ARROWHEAD BELOW
+		0x200C == code || // Cf       ZERO WIDTH NON-JOINER
 		(0x20D0 <= code && code <= 0x20DC) || // Mn  [13] COMBINING LEFT HARPOON ABOVE..COMBINING FOUR DOTS ABOVE
 		(0x20DD <= code && code <= 0x20E0) || // Me   [4] COMBINING ENCLOSING CIRCLE..COMBINING ENCLOSING CIRCLE BACKSLASH
 		0x20E1 == code || // Mn       COMBINING LEFT RIGHT ARROW ABOVE
@@ -415,7 +499,7 @@ function GraphemeSplitter(){
 		0xA806 == code || // Mn       SYLOTI NAGRI SIGN HASANTA
 		0xA80B == code || // Mn       SYLOTI NAGRI SIGN ANUSVARA
 		(0xA825 <= code && code <= 0xA826) || // Mn   [2] SYLOTI NAGRI VOWEL SIGN U..SYLOTI NAGRI VOWEL SIGN E
-		0xA8C4 == code || // Mn       SAURASHTRA SIGN VIRAMA
+		(0xA8C4 <= code && code <= 0xA8C5) || // Mn   [2] SAURASHTRA SIGN VIRAMA..SAURASHTRA SIGN CANDRABINDU
 		(0xA8E0 <= code && code <= 0xA8F1) || // Mn  [18] COMBINING DEVANAGARI DIGIT ZERO..COMBINING DEVANAGARI SIGN AVAGRAHA
 		(0xA926 <= code && code <= 0xA92D) || // Mn   [8] KAYAH LI VOWEL UE..KAYAH LI TONE CALYA PLOPHU
 		(0xA947 <= code && code <= 0xA951) || // Mn  [11] REJANG VOWEL SIGN I..REJANG CONSONANT SIGN R
@@ -468,6 +552,7 @@ function GraphemeSplitter(){
 		(0x1122F <= code && code <= 0x11231) || // Mn   [3] KHOJKI VOWEL SIGN U..KHOJKI VOWEL SIGN AI
 		0x11234 == code || // Mn       KHOJKI SIGN ANUSVARA
 		(0x11236 <= code && code <= 0x11237) || // Mn   [2] KHOJKI SIGN NUKTA..KHOJKI SIGN SHADDA
+		0x1123E == code || // Mn       KHOJKI SIGN SUKUN
 		0x112DF == code || // Mn       KHUDAWADI SIGN ANUSVARA
 		(0x112E3 <= code && code <= 0x112EA) || // Mn   [8] KHUDAWADI VOWEL SIGN U..KHUDAWADI SIGN VIRAMA
 		(0x11300 <= code && code <= 0x11301) || // Mn   [2] GRANTHA SIGN COMBINING ANUSVARA ABOVE..GRANTHA SIGN CANDRABINDU
@@ -477,6 +562,9 @@ function GraphemeSplitter(){
 		0x11357 == code || // Mc       GRANTHA AU LENGTH MARK
 		(0x11366 <= code && code <= 0x1136C) || // Mn   [7] COMBINING GRANTHA DIGIT ZERO..COMBINING GRANTHA DIGIT SIX
 		(0x11370 <= code && code <= 0x11374) || // Mn   [5] COMBINING GRANTHA LETTER A..COMBINING GRANTHA LETTER PA
+		(0x11438 <= code && code <= 0x1143F) || // Mn   [8] NEWA VOWEL SIGN U..NEWA VOWEL SIGN AI
+		(0x11442 <= code && code <= 0x11444) || // Mn   [3] NEWA SIGN VIRAMA..NEWA SIGN ANUSVARA
+		0x11446 == code || // Mn       NEWA SIGN NUKTA
 		0x114B0 == code || // Mc       TIRHUTA VOWEL SIGN AA
 		(0x114B3 <= code && code <= 0x114B8) || // Mn   [6] TIRHUTA VOWEL SIGN U..TIRHUTA VOWEL SIGN VOCALIC LL
 		0x114BA == code || // Mn       TIRHUTA VOWEL SIGN SHORT E
@@ -498,6 +586,27 @@ function GraphemeSplitter(){
 		(0x1171D <= code && code <= 0x1171F) || // Mn   [3] AHOM CONSONANT SIGN MEDIAL LA..AHOM CONSONANT SIGN MEDIAL LIGATING RA
 		(0x11722 <= code && code <= 0x11725) || // Mn   [4] AHOM VOWEL SIGN I..AHOM VOWEL SIGN UU
 		(0x11727 <= code && code <= 0x1172B) || // Mn   [5] AHOM VOWEL SIGN AW..AHOM SIGN KILLER
+		(0x11A01 <= code && code <= 0x11A06) || // Mn   [6] ZANABAZAR SQUARE VOWEL SIGN I..ZANABAZAR SQUARE VOWEL SIGN O
+		(0x11A09 <= code && code <= 0x11A0A) || // Mn   [2] ZANABAZAR SQUARE VOWEL SIGN REVERSED I..ZANABAZAR SQUARE VOWEL LENGTH MARK
+		(0x11A33 <= code && code <= 0x11A38) || // Mn   [6] ZANABAZAR SQUARE FINAL CONSONANT MARK..ZANABAZAR SQUARE SIGN ANUSVARA
+		(0x11A3B <= code && code <= 0x11A3E) || // Mn   [4] ZANABAZAR SQUARE CLUSTER-FINAL LETTER YA..ZANABAZAR SQUARE CLUSTER-FINAL LETTER VA
+		0x11A47 == code || // Mn       ZANABAZAR SQUARE SUBJOINER
+		(0x11A51 <= code && code <= 0x11A56) || // Mn   [6] SOYOMBO VOWEL SIGN I..SOYOMBO VOWEL SIGN OE
+		(0x11A59 <= code && code <= 0x11A5B) || // Mn   [3] SOYOMBO VOWEL SIGN VOCALIC R..SOYOMBO VOWEL LENGTH MARK
+		(0x11A8A <= code && code <= 0x11A96) || // Mn  [13] SOYOMBO FINAL CONSONANT SIGN G..SOYOMBO SIGN ANUSVARA
+		(0x11A98 <= code && code <= 0x11A99) || // Mn   [2] SOYOMBO GEMINATION MARK..SOYOMBO SUBJOINER
+		(0x11C30 <= code && code <= 0x11C36) || // Mn   [7] BHAIKSUKI VOWEL SIGN I..BHAIKSUKI VOWEL SIGN VOCALIC L
+		(0x11C38 <= code && code <= 0x11C3D) || // Mn   [6] BHAIKSUKI VOWEL SIGN E..BHAIKSUKI SIGN ANUSVARA
+		0x11C3F == code || // Mn       BHAIKSUKI SIGN VIRAMA
+		(0x11C92 <= code && code <= 0x11CA7) || // Mn  [22] MARCHEN SUBJOINED LETTER KA..MARCHEN SUBJOINED LETTER ZA
+		(0x11CAA <= code && code <= 0x11CB0) || // Mn   [7] MARCHEN SUBJOINED LETTER RA..MARCHEN VOWEL SIGN AA
+		(0x11CB2 <= code && code <= 0x11CB3) || // Mn   [2] MARCHEN VOWEL SIGN U..MARCHEN VOWEL SIGN E
+		(0x11CB5 <= code && code <= 0x11CB6) || // Mn   [2] MARCHEN SIGN ANUSVARA..MARCHEN SIGN CANDRABINDU
+		(0x11D31 <= code && code <= 0x11D36) || // Mn   [6] MASARAM GONDI VOWEL SIGN AA..MASARAM GONDI VOWEL SIGN VOCALIC R
+		0x11D3A == code || // Mn       MASARAM GONDI VOWEL SIGN E
+		(0x11D3C <= code && code <= 0x11D3D) || // Mn   [2] MASARAM GONDI VOWEL SIGN AI..MASARAM GONDI VOWEL SIGN O
+		(0x11D3F <= code && code <= 0x11D45) || // Mn   [7] MASARAM GONDI VOWEL SIGN AU..MASARAM GONDI VIRAMA
+		0x11D47 == code || // Mn       MASARAM GONDI RA-KARA
 		(0x16AF0 <= code && code <= 0x16AF4) || // Mn   [5] BASSA VAH COMBINING HIGH TONE..BASSA VAH COMBINING HIGH-LOW TONE
 		(0x16B30 <= code && code <= 0x16B36) || // Mn   [7] PAHAWH HMONG MARK CIM TUB..PAHAWH HMONG MARK CIM TAUM
 		(0x16F8F <= code && code <= 0x16F92) || // Mn   [4] MIAO TONE RIGHT..MIAO TONE BELOW
@@ -515,7 +624,14 @@ function GraphemeSplitter(){
 		0x1DA84 == code || // Mn       SIGNWRITING LOCATION HEAD NECK
 		(0x1DA9B <= code && code <= 0x1DA9F) || // Mn   [5] SIGNWRITING FILL MODIFIER-2..SIGNWRITING FILL MODIFIER-6
 		(0x1DAA1 <= code && code <= 0x1DAAF) || // Mn  [15] SIGNWRITING ROTATION MODIFIER-2..SIGNWRITING ROTATION MODIFIER-16
+		(0x1E000 <= code && code <= 0x1E006) || // Mn   [7] COMBINING GLAGOLITIC LETTER AZU..COMBINING GLAGOLITIC LETTER ZHIVETE
+		(0x1E008 <= code && code <= 0x1E018) || // Mn  [17] COMBINING GLAGOLITIC LETTER ZEMLJA..COMBINING GLAGOLITIC LETTER HERU
+		(0x1E01B <= code && code <= 0x1E021) || // Mn   [7] COMBINING GLAGOLITIC LETTER SHTA..COMBINING GLAGOLITIC LETTER YATI
+		(0x1E023 <= code && code <= 0x1E024) || // Mn   [2] COMBINING GLAGOLITIC LETTER YU..COMBINING GLAGOLITIC LETTER SMALL YUS
+		(0x1E026 <= code && code <= 0x1E02A) || // Mn   [5] COMBINING GLAGOLITIC LETTER YO..COMBINING GLAGOLITIC LETTER FITA
 		(0x1E8D0 <= code && code <= 0x1E8D6) || // Mn   [7] MENDE KIKAKUI COMBINING NUMBER TEENS..MENDE KIKAKUI COMBINING NUMBER MILLIONS
+		(0x1E944 <= code && code <= 0x1E94A) || // Mn   [7] ADLAM ALIF LENGTHENER..ADLAM NUKTA
+		(0xE0020 <= code && code <= 0xE007F) || // Cf  [96] TAG SPACE..CANCEL TAG
 		(0xE0100 <= code && code <= 0xE01EF) // Mn [240] VARIATION SELECTOR-17..VARIATION SELECTOR-256
 		){
 			return Extend;
@@ -604,6 +720,7 @@ function GraphemeSplitter(){
 		(0x1C34 <= code && code <= 0x1C35) || // Mc   [2] LEPCHA CONSONANT SIGN NYIN-DO..LEPCHA CONSONANT SIGN KANG
 		0x1CE1 == code || // Mc       VEDIC TONE ATHARVAVEDIC INDEPENDENT SVARITA
 		(0x1CF2 <= code && code <= 0x1CF3) || // Mc   [2] VEDIC SIGN ARDHAVISARGA..VEDIC SIGN ROTATED ARDHAVISARGA
+		0x1CF7 == code || // Mc       VEDIC SIGN ATIKRAMA
 		(0xA823 <= code && code <= 0xA824) || // Mc   [2] SYLOTI NAGRI VOWEL SIGN A..SYLOTI NAGRI VOWEL SIGN I
 		0xA827 == code || // Mc       SYLOTI NAGRI VOWEL SIGN OO
 		(0xA880 <= code && code <= 0xA881) || // Mc   [2] SAURASHTRA SIGN ANUSVARA..SAURASHTRA SIGN VISARGA
@@ -642,6 +759,9 @@ function GraphemeSplitter(){
 		(0x11347 <= code && code <= 0x11348) || // Mc   [2] GRANTHA VOWEL SIGN EE..GRANTHA VOWEL SIGN AI
 		(0x1134B <= code && code <= 0x1134D) || // Mc   [3] GRANTHA VOWEL SIGN OO..GRANTHA SIGN VIRAMA
 		(0x11362 <= code && code <= 0x11363) || // Mc   [2] GRANTHA VOWEL SIGN VOCALIC L..GRANTHA VOWEL SIGN VOCALIC LL
+		(0x11435 <= code && code <= 0x11437) || // Mc   [3] NEWA VOWEL SIGN AA..NEWA VOWEL SIGN II
+		(0x11440 <= code && code <= 0x11441) || // Mc   [2] NEWA VOWEL SIGN O..NEWA VOWEL SIGN AU
+		0x11445 == code || // Mc       NEWA SIGN VISARGA
 		(0x114B1 <= code && code <= 0x114B2) || // Mc   [2] TIRHUTA VOWEL SIGN I..TIRHUTA VOWEL SIGN II
 		0x114B9 == code || // Mc       TIRHUTA VOWEL SIGN E
 		(0x114BB <= code && code <= 0x114BC) || // Mc   [2] TIRHUTA VOWEL SIGN AI..TIRHUTA VOWEL SIGN O
@@ -658,6 +778,15 @@ function GraphemeSplitter(){
 		0x116B6 == code || // Mc       TAKRI SIGN VIRAMA
 		(0x11720 <= code && code <= 0x11721) || // Mc   [2] AHOM VOWEL SIGN A..AHOM VOWEL SIGN AA
 		0x11726 == code || // Mc       AHOM VOWEL SIGN E
+		(0x11A07 <= code && code <= 0x11A08) || // Mc   [2] ZANABAZAR SQUARE VOWEL SIGN AI..ZANABAZAR SQUARE VOWEL SIGN AU
+		0x11A39 == code || // Mc       ZANABAZAR SQUARE SIGN VISARGA
+		(0x11A57 <= code && code <= 0x11A58) || // Mc   [2] SOYOMBO VOWEL SIGN AI..SOYOMBO VOWEL SIGN AU
+		0x11A97 == code || // Mc       SOYOMBO SIGN VISARGA
+		0x11C2F == code || // Mc       BHAIKSUKI VOWEL SIGN AA
+		0x11C3E == code || // Mc       BHAIKSUKI SIGN VISARGA
+		0x11CA9 == code || // Mc       MARCHEN SUBJOINED LETTER YA
+		0x11CB1 == code || // Mc       MARCHEN VOWEL SIGN I
+		0x11CB4 == code || // Mc       MARCHEN VOWEL SIGN O
 		(0x16F51 <= code && code <= 0x16F7E) || // Mc  [46] MIAO SIGN ASPIRATION..MIAO VOWEL SIGN NG
 		0x1D166 == code || // Mc       MUSICAL SYMBOL COMBINING SPRECHGESANG STEM
 		0x1D16D == code // Mc       MUSICAL SYMBOL COMBINING AUGMENTATION DOT
@@ -1496,6 +1625,84 @@ function GraphemeSplitter(){
 			return LVT;
 		}
 		
+		if(
+		0x261D == code || // So       WHITE UP POINTING INDEX
+		0x26F9 == code || // So       PERSON WITH BALL
+		(0x270A <= code && code <= 0x270D) || // So   [4] RAISED FIST..WRITING HAND
+		0x1F385 == code || // So       FATHER CHRISTMAS
+		(0x1F3C2 <= code && code <= 0x1F3C4) || // So   [3] SNOWBOARDER..SURFER
+		0x1F3C7 == code || // So       HORSE RACING
+		(0x1F3CA <= code && code <= 0x1F3CC) || // So   [3] SWIMMER..GOLFER
+		(0x1F442 <= code && code <= 0x1F443) || // So   [2] EAR..NOSE
+		(0x1F446 <= code && code <= 0x1F450) || // So  [11] WHITE UP POINTING BACKHAND INDEX..OPEN HANDS SIGN
+		0x1F46E == code || // So       POLICE OFFICER
+		(0x1F470 <= code && code <= 0x1F478) || // So   [9] BRIDE WITH VEIL..PRINCESS
+		0x1F47C == code || // So       BABY ANGEL
+		(0x1F481 <= code && code <= 0x1F483) || // So   [3] INFORMATION DESK PERSON..DANCER
+		(0x1F485 <= code && code <= 0x1F487) || // So   [3] NAIL POLISH..HAIRCUT
+		0x1F4AA == code || // So       FLEXED BICEPS
+		(0x1F574 <= code && code <= 0x1F575) || // So   [2] MAN IN BUSINESS SUIT LEVITATING..SLEUTH OR SPY
+		0x1F57A == code || // So       MAN DANCING
+		0x1F590 == code || // So       RAISED HAND WITH FINGERS SPLAYED
+		(0x1F595 <= code && code <= 0x1F596) || // So   [2] REVERSED HAND WITH MIDDLE FINGER EXTENDED..RAISED HAND WITH PART BETWEEN MIDDLE AND RING FINGERS
+		(0x1F645 <= code && code <= 0x1F647) || // So   [3] FACE WITH NO GOOD GESTURE..PERSON BOWING DEEPLY
+		(0x1F64B <= code && code <= 0x1F64F) || // So   [5] HAPPY PERSON RAISING ONE HAND..PERSON WITH FOLDED HANDS
+		0x1F6A3 == code || // So       ROWBOAT
+		(0x1F6B4 <= code && code <= 0x1F6B6) || // So   [3] BICYCLIST..PEDESTRIAN
+		0x1F6C0 == code || // So       BATH
+		0x1F6CC == code || // So       SLEEPING ACCOMMODATION
+		(0x1F918 <= code && code <= 0x1F91C) || // So   [5] SIGN OF THE HORNS..RIGHT-FACING FIST
+		(0x1F91E <= code && code <= 0x1F91F) || // So   [2] HAND WITH INDEX AND MIDDLE FINGERS CROSSED..I LOVE YOU HAND SIGN
+		0x1F926 == code || // So       FACE PALM
+		(0x1F930 <= code && code <= 0x1F939) || // So  [10] PREGNANT WOMAN..JUGGLING
+		(0x1F93D <= code && code <= 0x1F93E) || // So   [2] WATER POLO..HANDBALL
+		(0x1F9D1 <= code && code <= 0x1F9DD) // So  [13] ADULT..ELF
+		){
+			return E_Base;
+		}
+
+		if(
+		(0x1F3FB <= code && code <= 0x1F3FF) // Sk   [5] EMOJI MODIFIER FITZPATRICK TYPE-1-2..EMOJI MODIFIER FITZPATRICK TYPE-6
+		){
+			return E_Modifier;
+		}
+
+		if(
+		0x200D == code // Cf       ZERO WIDTH JOINER
+		){
+			return ZWJ;
+		}
+
+		if(
+		0x2640 == code || // So       FEMALE SIGN
+		0x2642 == code || // So       MALE SIGN
+		(0x2695 <= code && code <= 0x2696) || // So   [2] STAFF OF AESCULAPIUS..SCALES
+		0x2708 == code || // So       AIRPLANE
+		0x2764 == code || // So       HEAVY BLACK HEART
+		0x1F308 == code || // So       RAINBOW
+		0x1F33E == code || // So       EAR OF RICE
+		0x1F373 == code || // So       COOKING
+		0x1F393 == code || // So       GRADUATION CAP
+		0x1F3A4 == code || // So       MICROPHONE
+		0x1F3A8 == code || // So       ARTIST PALETTE
+		0x1F3EB == code || // So       SCHOOL
+		0x1F3ED == code || // So       FACTORY
+		0x1F48B == code || // So       KISS MARK
+		(0x1F4BB <= code && code <= 0x1F4BC) || // So   [2] PERSONAL COMPUTER..BRIEFCASE
+		0x1F527 == code || // So       WRENCH
+		0x1F52C == code || // So       MICROSCOPE
+		0x1F5E8 == code || // So       LEFT SPEECH BUBBLE
+		0x1F680 == code || // So       ROCKET
+		0x1F692 == code // So       FIRE ENGINE
+		){
+			return Glue_After_Zwj;
+		}
+
+		if(
+		(0x1F466 <= code && code <= 0x1F469) // So   [4] BOY..WOMAN
+		){
+			return E_Base_GAZ;
+		}
 		
 		
 		//all unlisted characters have a grapheme break property of "Other"
