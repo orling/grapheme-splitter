@@ -39,7 +39,7 @@ Enter the grapheme-splitter.js library. It can be used to properly split JavaScr
 You can use the index.js file directly as-is. Or you you can install `grapheme-splitter` to your project using the NPM command below:
 
 ```
-$ npm install --save @naytev/grapheme-splitter
+$ npm install --save grapheme-splitter
 ```
 
 # Tests
