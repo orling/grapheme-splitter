@@ -88,6 +88,18 @@ splitter.splitGraphemes("अनुच्छेद"); // returns ["अ","नु",
 splitter.splitGraphemes("Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍A̴̵̜̰͔ͫ͗͢L̠ͨͧͩ͘G̴̻͈͍͔̹̑͗̎̅͛́Ǫ̵̹̻̝̳͂̌̌͘!͖̬̰̙̗̿̋ͥͥ̂ͣ̐́́͜͞"); // returns ["Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍","A̴̵̜̰͔ͫ͗͢","L̠ͨͧͩ͘","G̴̻͈͍͔̹̑͗̎̅͛́","Ǫ̵̹̻̝̳͂̌̌͘","!͖̬̰̙̗̿̋ͥͥ̂ͣ̐́́͜͞"]
 ```
 
+# TypeScript
+
+Grapheme splitter includes TypeScript declarations.
+
+```typescript
+import GraphemeSplitter = require('grapheme-splitter')
+
+const splitter = new GraphemeSplitter()
+
+const split: string[] = splitter.splitGraphemes('Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍A̴̵̜̰͔ͫ͗͢L̠ͨͧͩ͘G̴̻͈͍͔̹̑͗̎̅͛́Ǫ̵̹̻̝̳͂̌̌͘!͖̬̰̙̗̿̋ͥͥ̂ͣ̐́́͜͞')
+```
+
 # Acknowledgements
 
 This library is heavily influenced by Devon Govett's excellent grapheme-breaker CoffeeScript library at https://github.com/devongovett/grapheme-breaker with an emphasis on ease of integration and pure JavaScript implementation.
