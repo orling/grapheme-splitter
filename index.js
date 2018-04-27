@@ -1711,4 +1711,6 @@ function GraphemeSplitter(){
 	return this;
 }
 
-module.exports = GraphemeSplitter
+if (typeof module != 'undefined' && module.exports) {
+    module.exports = GraphemeSplitter;
+}
