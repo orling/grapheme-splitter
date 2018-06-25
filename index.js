@@ -220,7 +220,34 @@ function GraphemeSplitter(){
 		}
 		return res;
 	};
-	
+
+	// Returns the iterator of grapheme clusters there are in the given string
+	this.iterateGraphemes = function(str) {
+		var index = 0;
+		var res = {
+			next: (function() {
+				var value;
+				var brk;
+				if ((brk = this.nextBreak(str, index)) < str.length) {
+					value = str.slice(index, brk);
+					index = brk;
+					return { value: value, done: false };
+				}
+				if (index < str.length) {
+					value = str.slice(index);
+					index = str.length;
+					return { value: value, done: false };
+				}
+				return { value: undefined, done: true };
+			}).bind(this)
+		};
+		// ES2015 @@iterator method (iterable) for spread syntax and for...of statement
+		if (typeof Symbol !== 'undefined' && Symbol.iterator) {
+			res[Symbol.iterator] = function() {return res};
+		}
+		return res;
+	};
+
 	// Returns the number of grapheme clusters there are in the given string
 	this.countGraphemes = function(str){
 		var count = 0;

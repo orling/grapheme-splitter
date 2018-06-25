@@ -54,6 +54,20 @@ test('splitGraphemes returns properly split list from string', t => {
   t.end();
 });
 
+test('iterateGraphemes returns properly split iterator from string', t => {
+  const splitter = new GraphemeSplitter();
+
+  t.plan(testData.length);
+
+  testData.forEach( ({ input, expected }) => {
+    const result = splitter.iterateGraphemes(input);
+
+    t.deepLooseEqual([...result], expected);
+  });
+
+  t.end();
+});
+
 test('countGraphemes returns the correct number of graphemes in string', t => {
   const splitter = new GraphemeSplitter();
 
