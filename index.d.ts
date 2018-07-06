@@ -17,6 +17,8 @@ declare class GraphemeSplitter {
   countGraphemes(s: string): number
   /** split the string to an array of grapheme clusters */
   splitGraphemes(s: string): string[]
+  /** iterate the string to an iterable iterator of grapheme clusters */
+  iterateGraphemes(s: string): IterableIterator<string>
 }
 
 export = GraphemeSplitter

@@ -60,6 +60,9 @@ var splitter = new GraphemeSplitter();
 // split the string to an array of grapheme clusters (one string each)
 var graphemes = splitter.splitGraphemes(string);
 
+// iterate the string to an iterable iterator of grapheme clusters (one string each)
+var graphemes = splitter.iterateGraphemes(string);
+
 // or do this if you just need their number
 var graphemeCount = splitter.countGraphemes(string);
 ```
