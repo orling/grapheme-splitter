@@ -30,8 +30,5 @@
   "dependencies": {},
   "devDependencies": {
     "tape": "^4.6.3"
-  },
-  "engines": {
-    "npm": "~7.3.0"
   }
 }
