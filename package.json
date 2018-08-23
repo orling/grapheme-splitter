@@ -1,6 +1,6 @@
 {
   "name": "grapheme-splitter",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A JavaScipt library that breaks strings into their individual user-perceived characters. It supports emojis!",
   "homepage": "https://github.com/orling/grapheme-splitter",
   "author": "Orlin Georgiev",
