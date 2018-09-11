@@ -12,13 +12,13 @@
  */
 
 declare class GraphemeSplitter {
-  constructor()
-  /** count the number of grapheme clusters in a string */
-  countGraphemes(s: string): number
-  /** split the string to an array of grapheme clusters */
-  splitGraphemes(s: string): string[]
+  constructor();
   /** iterate the string to an iterable iterator of grapheme clusters */
-  iterateGraphemes(s: string): IterableIterator<string>
+  iterateGraphemes(s: string): IterableIterator<string>;
+  /** split the string to an array of grapheme clusters */
+  splitGraphemes(s: string): string[];
+  /** count the number of grapheme clusters in a string */
+  countGraphemes(s: string): number;
 }
 
-export = GraphemeSplitter
+export = GraphemeSplitter;
