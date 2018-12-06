@@ -11,7 +11,10 @@
       "url": "https://lucas.is"
     }
   ],
-  "main": "index.js",
+  "main": "dist/index.js",
+  "files": [
+    "dist/"
+  ],
   "license": "MIT",
   "keywords": [
     "utf-8",
@@ -20,7 +23,9 @@
     "split"
   ],
   "scripts": {
-    "test": "tape tests/grapheme_splitter_tests.js"
+    "build": "tsc -p tsconfig.json",
+    "test": "tape tests/grapheme_splitter_tests.js",
+    "pack": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -29,6 +34,7 @@
   "bugs": "https://github.com/orling/grapheme-splitter/issues",
   "dependencies": {},
   "devDependencies": {
-    "tape": "^4.6.3"
+    "tape": "^4.6.3",
+    "typescript": "^3.2.1"
   }
 }

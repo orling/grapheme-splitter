@@ -1,7 +1,7 @@
 const fs = require('fs')
 const test = require('tape')
 
-const GraphemeSplitter = require('../index')
+const GraphemeSplitter = require('..').default
 
 function ucs2encode(array) {
   return array.map( value => {
