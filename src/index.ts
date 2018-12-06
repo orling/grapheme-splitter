@@ -3,9 +3,9 @@ Breaks a Javascript string into individual user-perceived "characters"
 called extended grapheme clusters by implementing the Unicode UAX-29 standard, version 10.0.0
 
 Usage:
-var splitter = new GraphemeSplitter();
+const splitter = new GraphemeSplitter();
 //returns an array of strings, one string for each grapheme cluster
-var graphemes = splitter.splitGraphemes(string);
+const graphemes = splitter.splitGraphemes(string);
 
 */
 const CR = 0,
@@ -46,13 +46,13 @@ export default class GraphemeSplitter{
         if(idx === undefined){
             idx = 0;
         }
-        var code = str.charCodeAt(idx);
+        const code = str.charCodeAt(idx);
 
         // if a high surrogate
         if (0xD800 <= code && code <= 0xDBFF &&
             idx < str.length - 1){
-            var hi = code;
-            var low = str.charCodeAt(idx + 1);
+            const hi = code;
+            const low = str.charCodeAt(idx + 1);
             if (0xDC00 <= low && low <= 0xDFFF){
                 return ((hi - 0xD800) * 0x400) + (low - 0xDC00) + 0x10000;
             }
@@ -62,8 +62,8 @@ export default class GraphemeSplitter{
         // if a low surrogate
         if (0xDC00 <= code && code <= 0xDFFF &&
             idx >= 1){
-            var hi = str.charCodeAt(idx - 1);
-            var low = code;
+            const hi = str.charCodeAt(idx - 1);
+            const low = code;
             if (0xD800 <= hi && hi <= 0xDBFF){
                 return ((hi - 0xD800) * 0x400) + (low - 0xDC00) + 0x10000;
             }
@@ -190,13 +190,13 @@ export default class GraphemeSplitter{
         }
         const prev = GraphemeSplitter.getGraphemeBreakProperty(GraphemeSplitter.codePointAt(string, index));
         const mid: number[] = []
-        for (var i = index + 1; i < string.length; i++) {
+        for (let i = index + 1; i < string.length; i++) {
             // check for already processed low surrogates
             if(GraphemeSplitter.isSurrogate(string, i - 1)){
                 continue;
             }
 
-            var next = GraphemeSplitter.getGraphemeBreakProperty(GraphemeSplitter.codePointAt(string, i));
+            const next = GraphemeSplitter.getGraphemeBreakProperty(GraphemeSplitter.codePointAt(string, i));
             if(GraphemeSplitter.shouldBreak(prev, mid, next)){
                 return i;
             }
@@ -252,9 +252,9 @@ export default class GraphemeSplitter{
 
     // Returns the number of grapheme clusters there are in the given string
     public countGraphemes(str: string): number {
-        var count = 0;
-        var index = 0;
-        var brk;
+        let count = 0;
+        let index = 0;
+        let brk: number;
         while((brk = this.nextBreak(str, index)) < str.length){
             index = brk;
             count++;
