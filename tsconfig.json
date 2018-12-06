@@ -4,7 +4,9 @@
     "lib": ["es2017"],
     "module": "umd",
     "outDir": "dist/",
-    "declaration": true
+    "declaration": true,
+    "noImplicitAny": true,
+    "strict": true
   },
   "include": [
     "src/"

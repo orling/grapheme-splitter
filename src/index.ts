@@ -8,41 +8,41 @@ var splitter = new GraphemeSplitter();
 var graphemes = splitter.splitGraphemes(string);
 
 */
-export default function GraphemeSplitter(){
-    var CR = 0,
-        LF = 1,
-        Control = 2,
-        Extend = 3,
-        Regional_Indicator = 4,
-        SpacingMark = 5,
-        L = 6,
-        V = 7,
-        T = 8,
-        LV = 9,
-        LVT = 10,
-        Other = 11,
-        Prepend = 12,
-        E_Base = 13,
-        E_Modifier = 14,
-        ZWJ = 15,
-        Glue_After_Zwj = 16,
-        E_Base_GAZ = 17;
+const CR = 0,
+    LF = 1,
+    Control = 2,
+    Extend = 3,
+    Regional_Indicator = 4,
+    SpacingMark = 5,
+    L = 6,
+    V = 7,
+    T = 8,
+    LV = 9,
+    LVT = 10,
+    Other = 11,
+    Prepend = 12,
+    E_Base = 13,
+    E_Modifier = 14,
+    ZWJ = 15,
+    Glue_After_Zwj = 16,
+    E_Base_GAZ = 17;
 
-    // BreakTypes
-    var NotBreak = 0,
-        BreakStart = 1,
-        Break = 2,
-        BreakLastRegional = 3,
-        BreakPenultimateRegional = 4;
+// BreakTypes
+const NotBreak = 0,
+    BreakStart = 1,
+    Break = 2,
+    BreakLastRegional = 3,
+    BreakPenultimateRegional = 4;
+export default class GraphemeSplitter{
 
-    function isSurrogate(str, pos) {
+    static isSurrogate(str: string, pos: number): boolean {
         return  0xd800 <= str.charCodeAt(pos) && str.charCodeAt(pos) <= 0xdbff &&
             0xdc00 <= str.charCodeAt(pos + 1) && str.charCodeAt(pos + 1) <= 0xdfff;
     }
 
     // Private function, gets a Unicode code point from a JavaScript UTF-16 string
     // handling surrogate pairs appropriately
-    function codePointAt(str, idx){
+    static codePointAt(str: string, idx: number): number{
         if(idx === undefined){
             idx = 0;
         }
@@ -77,7 +77,7 @@ export default function GraphemeSplitter(){
 
     // Private function, returns whether a break is allowed between the
     // two given grapheme breaking classes
-    function shouldBreak(start, mid, end){
+    static shouldBreak(start: number, mid: number[], end: number): number{
         var all = [start].concat(mid).concat([end]);
         var previous = all[all.length - 2]
         var next = end
@@ -178,7 +178,7 @@ export default function GraphemeSplitter(){
     }
 
     // Returns the next grapheme break in the string after the given index
-    this.nextBreak = function(string, index){
+    private nextBreak(string: string, index: number): number {
         if(index === undefined){
             index = 0;
         }
@@ -188,16 +188,16 @@ export default function GraphemeSplitter(){
         if(index >= string.length - 1){
             return string.length;
         }
-        var prev = getGraphemeBreakProperty(codePointAt(string, index));
-        var mid = []
+        const prev = GraphemeSplitter.getGraphemeBreakProperty(GraphemeSplitter.codePointAt(string, index));
+        const mid: number[] = []
         for (var i = index + 1; i < string.length; i++) {
             // check for already processed low surrogates
-            if(isSurrogate(string, i - 1)){
+            if(GraphemeSplitter.isSurrogate(string, i - 1)){
                 continue;
             }
 
-            var next = getGraphemeBreakProperty(codePointAt(string, i));
-            if(shouldBreak(prev, mid, next)){
+            var next = GraphemeSplitter.getGraphemeBreakProperty(GraphemeSplitter.codePointAt(string, i));
+            if(GraphemeSplitter.shouldBreak(prev, mid, next)){
                 return i;
             }
 
@@ -207,10 +207,10 @@ export default function GraphemeSplitter(){
     };
 
     // Breaks the given string into an array of grapheme cluster strings
-    this.splitGraphemes = function(str){
-        var res = [];
-        var index = 0;
-        var brk;
+    public splitGraphemes(str: string): string[] {
+        let res: string[] = [];
+        let index = 0;
+        let brk: number;
         while((brk = this.nextBreak(str, index)) < str.length){
             res.push(str.slice(index, brk));
             index = brk;
@@ -222,24 +222,23 @@ export default function GraphemeSplitter(){
     };
 
     // Returns the iterator of grapheme clusters there are in the given string
-    this.iterateGraphemes = function(str) {
-        var index = 0;
-        var res = {
-            next: (function() {
-                var value;
-                var brk;
+    public iterateGraphemes(str: string): IterableIterator<string> {
+        let index = 0;
+        const res: Iterator<string | undefined> = {
+            next: (): IteratorResult<string | undefined> => {
+                let brk;
                 if ((brk = this.nextBreak(str, index)) < str.length) {
-                    value = str.slice(index, brk);
+                    const value = str.slice(index, brk);
                     index = brk;
                     return { value: value, done: false };
                 }
                 if (index < str.length) {
-                    value = str.slice(index);
+                    const value = str.slice(index);
                     index = str.length;
                     return { value: value, done: false };
                 }
                 return { value: undefined, done: true };
-            }).bind(this)
+            },
         };
         // ES2015 @@iterator method (iterable) for spread syntax and for...of statement
         // @ts-ignore
@@ -247,11 +246,12 @@ export default function GraphemeSplitter(){
             // @ts-ignore
             res[Symbol.iterator] = function() {return res};
         }
+        // @ts-ignore
         return res;
     };
 
     // Returns the number of grapheme clusters there are in the given string
-    this.countGraphemes = function(str){
+    public countGraphemes(str: string): number {
         var count = 0;
         var index = 0;
         var brk;
@@ -266,7 +266,7 @@ export default function GraphemeSplitter(){
     };
 
     //given a Unicode code point, determines this symbol's grapheme break property
-    function getGraphemeBreakProperty(code){
+    static getGraphemeBreakProperty(code: number): number {
 
         //grapheme break property for Unicode 10.0.0,
         //taken from http://www.unicode.org/Public/10.0.0/ucd/auxiliary/GraphemeBreakProperty.txt
@@ -1737,5 +1737,4 @@ export default function GraphemeSplitter(){
         //all unlisted characters have a grapheme break property of "Other"
         return Other;
     }
-    return this;
 }
