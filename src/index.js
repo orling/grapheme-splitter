@@ -33,16 +33,28 @@ const NotBreak = 0,
     Break = 2,
     BreakLastRegional = 3,
     BreakPenultimateRegional = 4;
-export default class GraphemeSplitter{
 
-    static isSurrogate(str: string, pos: number): boolean {
+class GSHelper {
+    /**
+     * Check if the the character at the position {pos} of the string is surrogate
+     * @param str {string}
+     * @param pos {number}
+     * @returns {boolean}
+     */
+    static isSurrogate(str, pos) {
         return  0xd800 <= str.charCodeAt(pos) && str.charCodeAt(pos) <= 0xdbff &&
             0xdc00 <= str.charCodeAt(pos + 1) && str.charCodeAt(pos + 1) <= 0xdfff;
     }
 
-    // Private function, gets a Unicode code point from a JavaScript UTF-16 string
-    // handling surrogate pairs appropriately
-    static codePointAt(str: string, idx: number): number{
+    /**
+     * The String.prototype.codePointAt polyfill
+     * Private function, gets a Unicode code point from a JavaScript UTF-16 string
+     * handling surrogate pairs appropriately
+     * @param str {string}
+     * @param idx {number}
+     * @returns {number}
+     */
+    static codePointAt(str, idx){
         if(idx === undefined){
             idx = 0;
         }
@@ -75,9 +87,15 @@ export default class GraphemeSplitter{
         return code;
     }
 
-    // Private function, returns whether a break is allowed between the
-    // two given grapheme breaking classes
-    static shouldBreak(start: number, mid: number[], end: number): number{
+    //
+    /**
+     * Private function, returns whether a break is allowed between the two given grapheme breaking classes
+     * @param start {number}
+     * @param mid {Array<number>}
+     * @param end {number}
+     * @returns {number}
+     */
+    static shouldBreak(start, mid, end){
         const all = [start].concat(mid).concat([end]);
         const previous = all[all.length - 2]
         const next = end
@@ -177,8 +195,16 @@ export default class GraphemeSplitter{
         return BreakStart;
     }
 
-    // Returns the next grapheme break in the string after the given index
-    private nextBreak(string: string, index: number): number {
+}
+export default class GraphemeSplitter{
+
+    /**
+     * Returns the next grapheme break in the string after the given index
+     * @param string {string}
+     * @param index {number}
+     * @returns {number}
+     */
+    nextBreak(string, index) {
         if(index === undefined){
             index = 0;
         }
@@ -188,16 +214,16 @@ export default class GraphemeSplitter{
         if(index >= string.length - 1){
             return string.length;
         }
-        const prev = GraphemeSplitter.getGraphemeBreakProperty(GraphemeSplitter.codePointAt(string, index));
-        const mid: number[] = []
+        const prev = GraphemeSplitter.getGraphemeBreakProperty(GSHelper.codePointAt(string, index));
+        const mid = []
         for (let i = index + 1; i < string.length; i++) {
             // check for already processed low surrogates
-            if(GraphemeSplitter.isSurrogate(string, i - 1)){
+            if(GSHelper.isSurrogate(string, i - 1)){
                 continue;
             }
 
-            const next = GraphemeSplitter.getGraphemeBreakProperty(GraphemeSplitter.codePointAt(string, i));
-            if(GraphemeSplitter.shouldBreak(prev, mid, next)){
+            const next = GraphemeSplitter.getGraphemeBreakProperty(GSHelper.codePointAt(string, i));
+            if(GSHelper.shouldBreak(prev, mid, next)){
                 return i;
             }
 
@@ -206,11 +232,15 @@ export default class GraphemeSplitter{
         return string.length;
     };
 
-    // Breaks the given string into an array of grapheme cluster strings
-    public splitGraphemes(str: string): string[] {
-        let res: string[] = [];
+    /**
+     * Breaks the given string into an array of grapheme cluster strings
+     * @param str {string}
+     * @returns {string[]}
+     */
+    splitGraphemes(str) {
+        let res = [];
         let index = 0;
-        let brk: number;
+        let brk;
         while((brk = this.nextBreak(str, index)) < str.length){
             res.push(str.slice(index, brk));
             index = brk;
@@ -221,11 +251,15 @@ export default class GraphemeSplitter{
         return res;
     };
 
-    // Returns the iterator of grapheme clusters there are in the given string
-    public iterateGraphemes(str: string): IterableIterator<string> {
+    /**
+     * Returns the iterator of grapheme clusters there are in the given string
+     * @param str {string}
+     * @returns {Iterator<string|undefined>}
+     */
+    iterateGraphemes(str) {
         let index = 0;
-        const res: Iterator<string | undefined> = {
-            next: (): IteratorResult<string | undefined> => {
+        const res = {
+            next: () => {
                 let brk;
                 if ((brk = this.nextBreak(str, index)) < str.length) {
                     const value = str.slice(index, brk);
@@ -241,20 +275,21 @@ export default class GraphemeSplitter{
             },
         };
         // ES2015 @@iterator method (iterable) for spread syntax and for...of statement
-        // @ts-ignore
         if (typeof Symbol !== 'undefined' && Symbol.iterator) {
-            // @ts-ignore
             res[Symbol.iterator] = function() {return res};
         }
-        // @ts-ignore
         return res;
     };
 
-    // Returns the number of grapheme clusters there are in the given string
-    public countGraphemes(str: string): number {
+    /**
+     * Returns the number of grapheme clusters there are in the given string
+     * @param str {string}
+     * @returns {number}
+     */
+    countGraphemes(str) {
         let count = 0;
         let index = 0;
-        let brk: number;
+        let brk;
         while((brk = this.nextBreak(str, index)) < str.length){
             index = brk;
             count++;
@@ -265,8 +300,12 @@ export default class GraphemeSplitter{
         return count;
     };
 
-    //given a Unicode code point, determines this symbol's grapheme break property
-    static getGraphemeBreakProperty(code: number): number {
+    /**
+     * Given a Unicode code point, determines this symbol's grapheme break property
+     * @param code {number} Unicode code point
+     * @returns {number}
+     */
+    static getGraphemeBreakProperty(code) {
 
         //grapheme break property for Unicode 10.0.0,
         //taken from http://www.unicode.org/Public/10.0.0/ucd/auxiliary/GraphemeBreakProperty.txt

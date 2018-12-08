@@ -23,7 +23,7 @@
     "split"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "babel src/index.js --out-file dist/index.js",
     "test": "tape tests/grapheme_splitter_tests.js",
     "pack": "npm run build"
   },
@@ -34,7 +34,9 @@
   "bugs": "https://github.com/orling/grapheme-splitter/issues",
   "dependencies": {},
   "devDependencies": {
-    "tape": "^4.6.3",
-    "typescript": "^3.2.1"
+    "@babel/cli": "^7.2.0",
+    "@babel/core": "^7.2.0",
+    "@babel/preset-env": "^7.2.0",
+    "tape": "^4.6.3"
   }
 }
