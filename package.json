@@ -25,6 +25,7 @@
   ],
   "scripts": {
     "build": "babel src/index.js --out-file index.js",
+    "pretest": "npm run build",
     "test": "tape tests/grapheme_splitter_tests.js",
     "pack": "npm run build"
   },
