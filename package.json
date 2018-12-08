@@ -11,9 +11,10 @@
       "url": "https://lucas.is"
     }
   ],
-  "main": "dist/index.js",
+  "main": "index.js",
   "files": [
-    "dist/"
+    "index.js",
+    "index.d.ts"
   ],
   "license": "MIT",
   "keywords": [
@@ -23,7 +24,7 @@
     "split"
   ],
   "scripts": {
-    "build": "babel src/index.js --out-file dist/index.js",
+    "build": "babel src/index.js --out-file index.js",
     "test": "tape tests/grapheme_splitter_tests.js",
     "pack": "npm run build"
   },
