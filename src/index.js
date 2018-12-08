@@ -8,6 +8,11 @@ const splitter = new GraphemeSplitter();
 const graphemes = splitter.splitGraphemes(string);
 
 */
+/**
+ * The Grapheme_Cluster_Break property value
+ * @see https://www.unicode.org/reports/tr29/#Default_Grapheme_Cluster_Table
+ * @type {number}
+ */
 const CR = 0,
     LF = 1,
     Control = 2,
@@ -27,7 +32,21 @@ const CR = 0,
     Glue_After_Zwj = 16,
     E_Base_GAZ = 17;
 
+/**
+ * The Emoji character property is an extension of UCD but shares the same namespace and structure
+ * @see http://www.unicode.org/reports/tr51/tr51-14.html#Emoji_Properties_and_Data_Files
+ *
+ * Here we model Extended_Pictograhpic only to implement UAX #29 GB11
+ * \p{Extended_Pictographic} Extend* ZWJ	×	\p{Extended_Pictographic}
+ *
+ * The Emoji character property should not be mixed with Grapheme_Cluster_Break since they are not exclusive
+ */
+const
+    Extended_Pictographic = 101
+;
+
 // BreakTypes
+// @type {BreakType}
 const NotBreak = 0,
     BreakStart = 1,
     Break = 2,
@@ -90,28 +109,25 @@ class GSHelper {
     //
     /**
      * Private function, returns whether a break is allowed between the two given grapheme breaking classes
+     * Implemented the UAX #29 3.1.1 Grapheme Cluster Boundary Rules on extended grapheme clusters
      * @param start {number}
      * @param mid {Array<number>}
      * @param end {number}
+     * @param startEmoji {number}
+     * @param midEmoji {Array<number>}
+     * @param endEmoji {number}
      * @returns {number}
      */
-    static shouldBreak(start, mid, end){
+    static shouldBreak(start, mid, end, startEmoji, midEmoji, endEmoji){
         const all = [start].concat(mid).concat([end]);
+        const allEmoji = [startEmoji].concat(midEmoji).concat([endEmoji]);
         const previous = all[all.length - 2]
-        const next = end
+        const next = end;
+        const nextEmoji = endEmoji;
 
-        // Lookahead termintor for:
-        // GB10. (E_Base | EBG) Extend* ?	E_Modifier
-        const eModifierIndex = all.lastIndexOf(E_Modifier)
-        if(eModifierIndex > 1 &&
-            all.slice(1, eModifierIndex).every(function(c){return c === Extend}) &&
-            [Extend, E_Base, E_Base_GAZ].indexOf(start) === -1){
-            return Break
-        }
-
-        // Lookahead termintor for:
-        // GB12. ^ (RI RI)* RI	?	RI
-        // GB13. [^RI] (RI RI)* RI	?	RI
+        // Lookahead terminator for:
+        // GB12. ^ (RI RI)* RI ? RI
+        // GB13. [^RI] (RI RI)* RI ? RI
         const rIIndex = all.lastIndexOf(Regional_Indicator)
         if(rIIndex > 0 &&
             all.slice(1, rIIndex).every(function(c){return c === Regional_Indicator}) &&
@@ -124,66 +140,58 @@ class GSHelper {
             }
         }
 
-        // GB3. CR X LF
+        // GB3. CR × LF
         if(previous === CR && next === LF){
             return NotBreak;
         }
         // GB4. (Control|CR|LF) ÷
         else if(previous === Control || previous === CR || previous === LF){
-            if(next === E_Modifier && mid.every(function(c){return c === Extend})){
-                return Break
-            }
-            else {
-                return BreakStart
-            }
+            return BreakStart
         }
         // GB5. ÷ (Control|CR|LF)
         else if(next === Control || next === CR || next === LF){
             return BreakStart;
         }
-        // GB6. L X (L|V|LV|LVT)
+        // GB6. L × (L|V|LV|LVT)
         else if(previous === L &&
             (next === L || next === V || next === LV || next === LVT)){
             return NotBreak;
         }
-        // GB7. (LV|V) X (V|T)
+        // GB7. (LV|V) × (V|T)
         else if((previous === LV || previous === V) &&
             (next === V || next === T)){
             return NotBreak;
         }
-        // GB8. (LVT|T) X (T)
+        // GB8. (LVT|T) × (T)
         else if((previous === LVT || previous === T) &&
             next === T){
             return NotBreak;
         }
-        // GB9. X (Extend|ZWJ)
+        // GB9. × (Extend|ZWJ)
         else if (next === Extend || next === ZWJ){
             return NotBreak;
         }
-        // GB9a. X SpacingMark
+        // GB9a. × SpacingMark
         else if(next === SpacingMark){
             return NotBreak;
         }
-        // GB9b. Prepend X
+        // GB9b. Prepend ×
         else if (previous === Prepend){
             return NotBreak;
         }
 
-        // GB10. (E_Base | EBG) Extend* ?	E_Modifier
-        const previousNonExtendIndex = all.indexOf(Extend) !== -1 ? all.lastIndexOf(Extend) - 1 : all.length - 2;
-        if([E_Base, E_Base_GAZ].indexOf(all[previousNonExtendIndex]) !== -1 &&
-            all.slice(previousNonExtendIndex + 1, -1).every(function(c){return c === Extend}) &&
-            next === E_Modifier){
+        // GB11. \p{Extended_Pictographic} Extend* ZWJ × \p{Extended_Pictographic}
+        const previousNonExtendIndex = allEmoji.slice(0, -1).lastIndexOf(Extended_Pictographic);
+        if(previousNonExtendIndex !== -1 &&
+            allEmoji[previousNonExtendIndex] === Extended_Pictographic &&
+            all.slice(previousNonExtendIndex + 1, -2).every(function(c){return c === Extend}) &&
+            previous === ZWJ &&
+            nextEmoji === Extended_Pictographic){
             return NotBreak;
         }
 
-        // GB11. ZWJ ? (Glue_After_Zwj | EBG)
-        if(previous === ZWJ && [Glue_After_Zwj, E_Base_GAZ].indexOf(next) !== -1) {
-            return NotBreak;
-        }
-
-        // GB12. ^ (RI RI)* RI ? RI
-        // GB13. [^RI] (RI RI)* RI ? RI
+        // GB12. ^ (RI RI)* RI × RI
+        // GB13. [^RI] (RI RI)* RI × RI
         if(mid.indexOf(Regional_Indicator) !== -1) {
             return Break;
         }
@@ -214,20 +222,26 @@ export default class GraphemeSplitter{
         if(index >= string.length - 1){
             return string.length;
         }
-        const prev = GraphemeSplitter.getGraphemeBreakProperty(GSHelper.codePointAt(string, index));
-        const mid = []
+        const prevCP = GSHelper.codePointAt(string, index);
+        const prev = GraphemeSplitter.getGraphemeBreakProperty(prevCP);
+        const prevEmoji = GraphemeSplitter.getEmojiProperty(prevCP);
+        const mid = [];
+        const midEmoji = [];
         for (let i = index + 1; i < string.length; i++) {
             // check for already processed low surrogates
             if(GSHelper.isSurrogate(string, i - 1)){
                 continue;
             }
 
-            const next = GraphemeSplitter.getGraphemeBreakProperty(GSHelper.codePointAt(string, i));
-            if(GSHelper.shouldBreak(prev, mid, next)){
+            const nextCP = GSHelper.codePointAt(string, i);
+            const next = GraphemeSplitter.getGraphemeBreakProperty(nextCP);
+            const nextEmoji = GraphemeSplitter.getEmojiProperty(nextCP);
+            if(GSHelper.shouldBreak(prev, mid, next, prevEmoji, midEmoji, nextEmoji)){
                 return i;
             }
 
             mid.push(next);
+            midEmoji.push(nextEmoji);
         }
         return string.length;
     };
@@ -1706,5 +1720,256 @@ export default class GraphemeSplitter{
 
         //all unlisted characters have a grapheme break property of "Other"
         return Other;
+    }
+
+    static getEmojiProperty(code) {
+
+        // emoji property for Unicode 11.0.0,
+        // taken from https://www.unicode.org/Public/emoji//11.0/emoji-data.txt
+        // and generated by
+        // node ./scripts/generate-emoji-extended-pictographic.js
+        if(
+            0x00A9 === code || //  1.1  [1] (©️)       copyright
+            0x00AE === code || //  1.1  [1] (®️)       registered
+            0x203C === code || //  1.1  [1] (‼️)       double exclamation mark
+            0x2049 === code || //  3.0  [1] (⁉️)       exclamation question mark
+            0x2122 === code || //  1.1  [1] (™️)       trade mark
+            0x2139 === code || //  3.0  [1] (ℹ️)       information
+            (0x2194 <= code && code <= 0x2199) || //  1.1  [6] (↔️..↙️)    left-right arrow..down-left arrow
+            (0x21A9 <= code && code <= 0x21AA) || //  1.1  [2] (↩️..↪️)    right arrow curving left..left arrow curving right
+            (0x231A <= code && code <= 0x231B) || //  1.1  [2] (⌚..⌛)    watch..hourglass done
+            0x2328 === code || //  1.1  [1] (⌨️)       keyboard
+            0x2388 === code || //  3.0  [1] (⎈️)       HELM SYMBOL
+            0x23CF === code || //  4.0  [1] (⏏️)       eject button
+            (0x23E9 <= code && code <= 0x23F3) || //  6.0 [11] (⏩..⏳)    fast-forward button..hourglass not done
+            (0x23F8 <= code && code <= 0x23FA) || //  7.0  [3] (⏸️..⏺️)    pause button..record button
+            0x24C2 === code || //  1.1  [1] (Ⓜ️)       circled M
+            (0x25AA <= code && code <= 0x25AB) || //  1.1  [2] (▪️..▫️)    black small square..white small square
+            0x25B6 === code || //  1.1  [1] (▶️)       play button
+            0x25C0 === code || //  1.1  [1] (◀️)       reverse button
+            (0x25FB <= code && code <= 0x25FE) || //  3.2  [4] (◻️..◾)    white medium square..black medium-small square
+            (0x2600 <= code && code <= 0x2605) || //  1.1  [6] (☀️..★️)    sun..BLACK STAR
+            (0x2607 <= code && code <= 0x2612) || //  1.1 [12] (☇️..☒️)    LIGHTNING..BALLOT BOX WITH X
+            (0x2614 <= code && code <= 0x2615) || //  4.0  [2] (☔..☕)    umbrella with rain drops..hot beverage
+            (0x2616 <= code && code <= 0x2617) || //  3.2  [2] (☖️..☗️)    WHITE SHOGI PIECE..BLACK SHOGI PIECE
+            0x2618 === code || //  4.1  [1] (☘️)       shamrock
+            0x2619 === code || //  3.0  [1] (☙️)       REVERSED ROTATED FLORAL HEART BULLET
+            (0x261A <= code && code <= 0x266F) || //  1.1 [86] (☚️..♯️)    BLACK LEFT POINTING INDEX..MUSIC SHARP SIGN
+            (0x2670 <= code && code <= 0x2671) || //  3.0  [2] (♰️..♱️)    WEST SYRIAC CROSS..EAST SYRIAC CROSS
+            (0x2672 <= code && code <= 0x267D) || //  3.2 [12] (♲️..♽️)    UNIVERSAL RECYCLING SYMBOL..PARTIALLY-RECYCLED PAPER SYMBOL
+            (0x267E <= code && code <= 0x267F) || //  4.1  [2] (♾️..♿)    infinity..wheelchair symbol
+            (0x2680 <= code && code <= 0x2685) || //  3.2  [6] (⚀️..⚅️)    DIE FACE-1..DIE FACE-6
+            (0x2690 <= code && code <= 0x2691) || //  4.0  [2] (⚐️..⚑️)    WHITE FLAG..BLACK FLAG
+            (0x2692 <= code && code <= 0x269C) || //  4.1 [11] (⚒️..⚜️)    hammer and pick..fleur-de-lis
+            0x269D === code || //  5.1  [1] (⚝️)       OUTLINED WHITE STAR
+            (0x269E <= code && code <= 0x269F) || //  5.2  [2] (⚞️..⚟️)    THREE LINES CONVERGING RIGHT..THREE LINES CONVERGING LEFT
+            (0x26A0 <= code && code <= 0x26A1) || //  4.0  [2] (⚠️..⚡)    warning..high voltage
+            (0x26A2 <= code && code <= 0x26B1) || //  4.1 [16] (⚢️..⚱️)    DOUBLED FEMALE SIGN..funeral urn
+            0x26B2 === code || //  5.0  [1] (⚲️)       NEUTER
+            (0x26B3 <= code && code <= 0x26BC) || //  5.1 [10] (⚳️..⚼️)    CERES..SESQUIQUADRATE
+            (0x26BD <= code && code <= 0x26BF) || //  5.2  [3] (⚽..⚿️)    soccer ball..SQUARED KEY
+            (0x26C0 <= code && code <= 0x26C3) || //  5.1  [4] (⛀️..⛃️)    WHITE DRAUGHTS MAN..BLACK DRAUGHTS KING
+            (0x26C4 <= code && code <= 0x26CD) || //  5.2 [10] (⛄..⛍️)    snowman without snow..DISABLED CAR
+            0x26CE === code || //  6.0  [1] (⛎)       Ophiuchus
+            (0x26CF <= code && code <= 0x26E1) || //  5.2 [19] (⛏️..⛡️)    pick..RESTRICTED LEFT ENTRY-2
+            0x26E2 === code || //  6.0  [1] (⛢️)       ASTRONOMICAL SYMBOL FOR URANUS
+            0x26E3 === code || //  5.2  [1] (⛣️)       HEAVY CIRCLE WITH STROKE AND TWO DOTS ABOVE
+            (0x26E4 <= code && code <= 0x26E7) || //  6.0  [4] (⛤️..⛧️)    PENTAGRAM..INVERTED PENTAGRAM
+            (0x26E8 <= code && code <= 0x26FF) || //  5.2 [24] (⛨️..⛿️)    BLACK CROSS ON SHIELD..WHITE FLAG WITH HORIZONTAL MIDDLE BLACK STRIPE
+            0x2700 === code || //  7.0  [1] (✀️)       BLACK SAFETY SCISSORS
+            (0x2701 <= code && code <= 0x2704) || //  1.1  [4] (✁️..✄️)    UPPER BLADE SCISSORS..WHITE SCISSORS
+            0x2705 === code || //  6.0  [1] (✅)       white heavy check mark
+            (0x2708 <= code && code <= 0x2709) || //  1.1  [2] (✈️..✉️)    airplane..envelope
+            (0x270A <= code && code <= 0x270B) || //  6.0  [2] (✊..✋)    raised fist..raised hand
+            (0x270C <= code && code <= 0x2712) || //  1.1  [7] (✌️..✒️)    victory hand..black nib
+            0x2714 === code || //  1.1  [1] (✔️)       heavy check mark
+            0x2716 === code || //  1.1  [1] (✖️)       heavy multiplication x
+            0x271D === code || //  1.1  [1] (✝️)       latin cross
+            0x2721 === code || //  1.1  [1] (✡️)       star of David
+            0x2728 === code || //  6.0  [1] (✨)       sparkles
+            (0x2733 <= code && code <= 0x2734) || //  1.1  [2] (✳️..✴️)    eight-spoked asterisk..eight-pointed star
+            0x2744 === code || //  1.1  [1] (❄️)       snowflake
+            0x2747 === code || //  1.1  [1] (❇️)       sparkle
+            0x274C === code || //  6.0  [1] (❌)       cross mark
+            0x274E === code || //  6.0  [1] (❎)       cross mark button
+            (0x2753 <= code && code <= 0x2755) || //  6.0  [3] (❓..❕)    question mark..white exclamation mark
+            0x2757 === code || //  5.2  [1] (❗)       exclamation mark
+            (0x2763 <= code && code <= 0x2767) || //  1.1  [5] (❣️..❧️)    heavy heart exclamation..ROTATED FLORAL HEART BULLET
+            (0x2795 <= code && code <= 0x2797) || //  6.0  [3] (➕..➗)    heavy plus sign..heavy division sign
+            0x27A1 === code || //  1.1  [1] (➡️)       right arrow
+            0x27B0 === code || //  6.0  [1] (➰)       curly loop
+            0x27BF === code || //  6.0  [1] (➿)       double curly loop
+            (0x2934 <= code && code <= 0x2935) || //  3.2  [2] (⤴️..⤵️)    right arrow curving up..right arrow curving down
+            (0x2B05 <= code && code <= 0x2B07) || //  4.0  [3] (⬅️..⬇️)    left arrow..down arrow
+            (0x2B1B <= code && code <= 0x2B1C) || //  5.1  [2] (⬛..⬜)    black large square..white large square
+            0x2B50 === code || //  5.1  [1] (⭐)       star
+            0x2B55 === code || //  5.2  [1] (⭕)       heavy large circle
+            0x3030 === code || //  1.1  [1] (〰️)       wavy dash
+            0x303D === code || //  3.2  [1] (〽️)       part alternation mark
+            0x3297 === code || //  1.1  [1] (㊗️)       Japanese “congratulations” button
+            0x3299 === code || //  1.1  [1] (㊙️)       Japanese “secret” button
+            (0x1F000 <= code && code <= 0x1F02B) || //  5.1 [44] (🀀️..🀫️)    MAHJONG TILE EAST WIND..MAHJONG TILE BACK
+            (0x1F02C <= code && code <= 0x1F02F) || //   NA  [4] (🀬️..🀯️)    <reserved-1F02C>..<reserved-1F02F>
+            (0x1F030 <= code && code <= 0x1F093) || //  5.1[100] (🀰️..🂓️)    DOMINO TILE HORIZONTAL BACK..DOMINO TILE VERTICAL-06-06
+            (0x1F094 <= code && code <= 0x1F09F) || //   NA [12] (🂔️..🂟️)    <reserved-1F094>..<reserved-1F09F>
+            (0x1F0A0 <= code && code <= 0x1F0AE) || //  6.0 [15] (🂠️..🂮️)    PLAYING CARD BACK..PLAYING CARD KING OF SPADES
+            (0x1F0AF <= code && code <= 0x1F0B0) || //   NA  [2] (🂯️..🂰️)    <reserved-1F0AF>..<reserved-1F0B0>
+            (0x1F0B1 <= code && code <= 0x1F0BE) || //  6.0 [14] (🂱️..🂾️)    PLAYING CARD ACE OF HEARTS..PLAYING CARD KING OF HEARTS
+            0x1F0BF === code || //  7.0  [1] (🂿️)       PLAYING CARD RED JOKER
+            0x1F0C0 === code || //   NA  [1] (🃀️)       <reserved-1F0C0>
+            (0x1F0C1 <= code && code <= 0x1F0CF) || //  6.0 [15] (🃁️..🃏)    PLAYING CARD ACE OF DIAMONDS..joker
+            0x1F0D0 === code || //   NA  [1] (🃐️)       <reserved-1F0D0>
+            (0x1F0D1 <= code && code <= 0x1F0DF) || //  6.0 [15] (🃑️..🃟️)    PLAYING CARD ACE OF CLUBS..PLAYING CARD WHITE JOKER
+            (0x1F0E0 <= code && code <= 0x1F0F5) || //  7.0 [22] (🃠️..🃵️)    PLAYING CARD FOOL..PLAYING CARD TRUMP-21
+            (0x1F0F6 <= code && code <= 0x1F0FF) || //   NA [10] (🃶️..🃿️)    <reserved-1F0F6>..<reserved-1F0FF>
+            (0x1F10D <= code && code <= 0x1F10F) || //   NA  [3] (🄍️..🄏️)    <reserved-1F10D>..<reserved-1F10F>
+            0x1F12F === code || // 11.0  [1] (🄯️)       COPYLEFT SYMBOL
+            (0x1F16C <= code && code <= 0x1F16F) || //   NA  [4] (🅬️..🅯️)    <reserved-1F16C>..<reserved-1F16F>
+            (0x1F170 <= code && code <= 0x1F171) || //  6.0  [2] (🅰️..🅱️)    A button (blood type)..B button (blood type)
+            0x1F17E === code || //  6.0  [1] (🅾️)       O button (blood type)
+            0x1F17F === code || //  5.2  [1] (🅿️)       P button
+            0x1F18E === code || //  6.0  [1] (🆎)       AB button (blood type)
+            (0x1F191 <= code && code <= 0x1F19A) || //  6.0 [10] (🆑..🆚)    CL button..VS button
+            (0x1F1AD <= code && code <= 0x1F1E5) || //   NA [57] (🆭️..🇥️)    <reserved-1F1AD>..<reserved-1F1E5>
+            (0x1F201 <= code && code <= 0x1F202) || //  6.0  [2] (🈁..🈂️)    Japanese “here” button..Japanese “service charge” button
+            (0x1F203 <= code && code <= 0x1F20F) || //   NA [13] (🈃️..🈏️)    <reserved-1F203>..<reserved-1F20F>
+            0x1F21A === code || //  5.2  [1] (🈚)       Japanese “free of charge” button
+            0x1F22F === code || //  5.2  [1] (🈯)       Japanese “reserved” button
+            (0x1F232 <= code && code <= 0x1F23A) || //  6.0  [9] (🈲..🈺)    Japanese “prohibited” button..Japanese “open for business” button
+            (0x1F23C <= code && code <= 0x1F23F) || //   NA  [4] (🈼️..🈿️)    <reserved-1F23C>..<reserved-1F23F>
+            (0x1F249 <= code && code <= 0x1F24F) || //   NA  [7] (🉉️..🉏️)    <reserved-1F249>..<reserved-1F24F>
+            (0x1F250 <= code && code <= 0x1F251) || //  6.0  [2] (🉐..🉑)    Japanese “bargain” button..Japanese “acceptable” button
+            (0x1F252 <= code && code <= 0x1F25F) || //   NA [14] (🉒️..🉟️)    <reserved-1F252>..<reserved-1F25F>
+            (0x1F260 <= code && code <= 0x1F265) || // 10.0  [6] (🉠️..🉥️)    ROUNDED SYMBOL FOR FU..ROUNDED SYMBOL FOR CAI
+            (0x1F266 <= code && code <= 0x1F2FF) || //   NA[154] (🉦️..🋿️)    <reserved-1F266>..<reserved-1F2FF>
+            (0x1F300 <= code && code <= 0x1F320) || //  6.0 [33] (🌀..🌠)    cyclone..shooting star
+            (0x1F321 <= code && code <= 0x1F32C) || //  7.0 [12] (🌡️..🌬️)    thermometer..wind face
+            (0x1F32D <= code && code <= 0x1F32F) || //  8.0  [3] (🌭..🌯)    hot dog..burrito
+            (0x1F330 <= code && code <= 0x1F335) || //  6.0  [6] (🌰..🌵)    chestnut..cactus
+            0x1F336 === code || //  7.0  [1] (🌶️)       hot pepper
+            (0x1F337 <= code && code <= 0x1F37C) || //  6.0 [70] (🌷..🍼)    tulip..baby bottle
+            0x1F37D === code || //  7.0  [1] (🍽️)       fork and knife with plate
+            (0x1F37E <= code && code <= 0x1F37F) || //  8.0  [2] (🍾..🍿)    bottle with popping cork..popcorn
+            (0x1F380 <= code && code <= 0x1F393) || //  6.0 [20] (🎀..🎓)    ribbon..graduation cap
+            (0x1F394 <= code && code <= 0x1F39F) || //  7.0 [12] (🎔️..🎟️)    HEART WITH TIP ON THE LEFT..admission tickets
+            (0x1F3A0 <= code && code <= 0x1F3C4) || //  6.0 [37] (🎠..🏄)    carousel horse..person surfing
+            0x1F3C5 === code || //  7.0  [1] (🏅)       sports medal
+            (0x1F3C6 <= code && code <= 0x1F3CA) || //  6.0  [5] (🏆..🏊)    trophy..person swimming
+            (0x1F3CB <= code && code <= 0x1F3CE) || //  7.0  [4] (🏋️..🏎️)    person lifting weights..racing car
+            (0x1F3CF <= code && code <= 0x1F3D3) || //  8.0  [5] (🏏..🏓)    cricket game..ping pong
+            (0x1F3D4 <= code && code <= 0x1F3DF) || //  7.0 [12] (🏔️..🏟️)    snow-capped mountain..stadium
+            (0x1F3E0 <= code && code <= 0x1F3F0) || //  6.0 [17] (🏠..🏰)    house..castle
+            (0x1F3F1 <= code && code <= 0x1F3F7) || //  7.0  [7] (🏱️..🏷️)    WHITE PENNANT..label
+            (0x1F3F8 <= code && code <= 0x1F3FA) || //  8.0  [3] (🏸..🏺)    badminton..amphora
+            (0x1F400 <= code && code <= 0x1F43E) || //  6.0 [63] (🐀..🐾)    rat..paw prints
+            0x1F43F === code || //  7.0  [1] (🐿️)       chipmunk
+            0x1F440 === code || //  6.0  [1] (👀)       eyes
+            0x1F441 === code || //  7.0  [1] (👁️)       eye
+            (0x1F442 <= code && code <= 0x1F4F7) || //  6.0[182] (👂..📷)    ear..camera
+            0x1F4F8 === code || //  7.0  [1] (📸)       camera with flash
+            (0x1F4F9 <= code && code <= 0x1F4FC) || //  6.0  [4] (📹..📼)    video camera..videocassette
+            (0x1F4FD <= code && code <= 0x1F4FE) || //  7.0  [2] (📽️..📾️)    film projector..PORTABLE STEREO
+            0x1F4FF === code || //  8.0  [1] (📿)       prayer beads
+            (0x1F500 <= code && code <= 0x1F53D) || //  6.0 [62] (🔀..🔽)    shuffle tracks button..downwards button
+            (0x1F546 <= code && code <= 0x1F54A) || //  7.0  [5] (🕆️..🕊️)    WHITE LATIN CROSS..dove
+            (0x1F54B <= code && code <= 0x1F54F) || //  8.0  [5] (🕋..🕏️)    kaaba..BOWL OF HYGIEIA
+            (0x1F550 <= code && code <= 0x1F567) || //  6.0 [24] (🕐..🕧)    one o’clock..twelve-thirty
+            (0x1F568 <= code && code <= 0x1F579) || //  7.0 [18] (🕨️..🕹️)    RIGHT SPEAKER..joystick
+            0x1F57A === code || //  9.0  [1] (🕺)       man dancing
+            (0x1F57B <= code && code <= 0x1F5A3) || //  7.0 [41] (🕻️..🖣️)    LEFT HAND TELEPHONE RECEIVER..BLACK DOWN POINTING BACKHAND INDEX
+            0x1F5A4 === code || //  9.0  [1] (🖤)       black heart
+            (0x1F5A5 <= code && code <= 0x1F5FA) || //  7.0 [86] (🖥️..🗺️)    desktop computer..world map
+            (0x1F5FB <= code && code <= 0x1F5FF) || //  6.0  [5] (🗻..🗿)    mount fuji..moai
+            0x1F600 === code || //  6.1  [1] (😀)       grinning face
+            (0x1F601 <= code && code <= 0x1F610) || //  6.0 [16] (😁..😐)    beaming face with smiling eyes..neutral face
+            0x1F611 === code || //  6.1  [1] (😑)       expressionless face
+            (0x1F612 <= code && code <= 0x1F614) || //  6.0  [3] (😒..😔)    unamused face..pensive face
+            0x1F615 === code || //  6.1  [1] (😕)       confused face
+            0x1F616 === code || //  6.0  [1] (😖)       confounded face
+            0x1F617 === code || //  6.1  [1] (😗)       kissing face
+            0x1F618 === code || //  6.0  [1] (😘)       face blowing a kiss
+            0x1F619 === code || //  6.1  [1] (😙)       kissing face with smiling eyes
+            0x1F61A === code || //  6.0  [1] (😚)       kissing face with closed eyes
+            0x1F61B === code || //  6.1  [1] (😛)       face with tongue
+            (0x1F61C <= code && code <= 0x1F61E) || //  6.0  [3] (😜..😞)    winking face with tongue..disappointed face
+            0x1F61F === code || //  6.1  [1] (😟)       worried face
+            (0x1F620 <= code && code <= 0x1F625) || //  6.0  [6] (😠..😥)    angry face..sad but relieved face
+            (0x1F626 <= code && code <= 0x1F627) || //  6.1  [2] (😦..😧)    frowning face with open mouth..anguished face
+            (0x1F628 <= code && code <= 0x1F62B) || //  6.0  [4] (😨..😫)    fearful face..tired face
+            0x1F62C === code || //  6.1  [1] (😬)       grimacing face
+            0x1F62D === code || //  6.0  [1] (😭)       loudly crying face
+            (0x1F62E <= code && code <= 0x1F62F) || //  6.1  [2] (😮..😯)    face with open mouth..hushed face
+            (0x1F630 <= code && code <= 0x1F633) || //  6.0  [4] (😰..😳)    anxious face with sweat..flushed face
+            0x1F634 === code || //  6.1  [1] (😴)       sleeping face
+            (0x1F635 <= code && code <= 0x1F640) || //  6.0 [12] (😵..🙀)    dizzy face..weary cat face
+            (0x1F641 <= code && code <= 0x1F642) || //  7.0  [2] (🙁..🙂)    slightly frowning face..slightly smiling face
+            (0x1F643 <= code && code <= 0x1F644) || //  8.0  [2] (🙃..🙄)    upside-down face..face with rolling eyes
+            (0x1F645 <= code && code <= 0x1F64F) || //  6.0 [11] (🙅..🙏)    person gesturing NO..folded hands
+            (0x1F680 <= code && code <= 0x1F6C5) || //  6.0 [70] (🚀..🛅)    rocket..left luggage
+            (0x1F6C6 <= code && code <= 0x1F6CF) || //  7.0 [10] (🛆️..🛏️)    TRIANGLE WITH ROUNDED CORNERS..bed
+            0x1F6D0 === code || //  8.0  [1] (🛐)       place of worship
+            (0x1F6D1 <= code && code <= 0x1F6D2) || //  9.0  [2] (🛑..🛒)    stop sign..shopping cart
+            (0x1F6D3 <= code && code <= 0x1F6D4) || // 10.0  [2] (🛓️..🛔️)    STUPA..PAGODA
+            (0x1F6D5 <= code && code <= 0x1F6DF) || //   NA [11] (🛕️..🛟️)    <reserved-1F6D5>..<reserved-1F6DF>
+            (0x1F6E0 <= code && code <= 0x1F6EC) || //  7.0 [13] (🛠️..🛬)    hammer and wrench..airplane arrival
+            (0x1F6ED <= code && code <= 0x1F6EF) || //   NA  [3] (🛭️..🛯️)    <reserved-1F6ED>..<reserved-1F6EF>
+            (0x1F6F0 <= code && code <= 0x1F6F3) || //  7.0  [4] (🛰️..🛳️)    satellite..passenger ship
+            (0x1F6F4 <= code && code <= 0x1F6F6) || //  9.0  [3] (🛴..🛶)    kick scooter..canoe
+            (0x1F6F7 <= code && code <= 0x1F6F8) || // 10.0  [2] (🛷..🛸)    sled..flying saucer
+            0x1F6F9 === code || // 11.0  [1] (🛹)       skateboard
+            (0x1F6FA <= code && code <= 0x1F6FF) || //   NA  [6] (🛺️..🛿️)    <reserved-1F6FA>..<reserved-1F6FF>
+            (0x1F774 <= code && code <= 0x1F77F) || //   NA [12] (🝴️..🝿️)    <reserved-1F774>..<reserved-1F77F>
+            (0x1F7D5 <= code && code <= 0x1F7D8) || // 11.0  [4] (🟕️..🟘️)    CIRCLED TRIANGLE..NEGATIVE CIRCLED SQUARE
+            (0x1F7D9 <= code && code <= 0x1F7FF) || //   NA [39] (🟙️..🟿️)    <reserved-1F7D9>..<reserved-1F7FF>
+            (0x1F80C <= code && code <= 0x1F80F) || //   NA  [4] (🠌️..🠏️)    <reserved-1F80C>..<reserved-1F80F>
+            (0x1F848 <= code && code <= 0x1F84F) || //   NA  [8] (🡈️..🡏️)    <reserved-1F848>..<reserved-1F84F>
+            (0x1F85A <= code && code <= 0x1F85F) || //   NA  [6] (🡚️..🡟️)    <reserved-1F85A>..<reserved-1F85F>
+            (0x1F888 <= code && code <= 0x1F88F) || //   NA  [8] (🢈️..🢏️)    <reserved-1F888>..<reserved-1F88F>
+            (0x1F8AE <= code && code <= 0x1F8FF) || //   NA [82] (🢮️..🣿️)    <reserved-1F8AE>..<reserved-1F8FF>
+            (0x1F90C <= code && code <= 0x1F90F) || //   NA  [4] (🤌️..🤏️)    <reserved-1F90C>..<reserved-1F90F>
+            (0x1F910 <= code && code <= 0x1F918) || //  8.0  [9] (🤐..🤘)    zipper-mouth face..sign of the horns
+            (0x1F919 <= code && code <= 0x1F91E) || //  9.0  [6] (🤙..🤞)    call me hand..crossed fingers
+            0x1F91F === code || // 10.0  [1] (🤟)       love-you gesture
+            (0x1F920 <= code && code <= 0x1F927) || //  9.0  [8] (🤠..🤧)    cowboy hat face..sneezing face
+            (0x1F928 <= code && code <= 0x1F92F) || // 10.0  [8] (🤨..🤯)    face with raised eyebrow..exploding head
+            0x1F930 === code || //  9.0  [1] (🤰)       pregnant woman
+            (0x1F931 <= code && code <= 0x1F932) || // 10.0  [2] (🤱..🤲)    breast-feeding..palms up together
+            (0x1F933 <= code && code <= 0x1F93A) || //  9.0  [8] (🤳..🤺)    selfie..person fencing
+            (0x1F93C <= code && code <= 0x1F93E) || //  9.0  [3] (🤼..🤾)    people wrestling..person playing handball
+            0x1F93F === code || //   NA  [1] (🤿️)       <reserved-1F93F>
+            (0x1F940 <= code && code <= 0x1F945) || //  9.0  [6] (🥀..🥅)    wilted flower..goal net
+            (0x1F947 <= code && code <= 0x1F94B) || //  9.0  [5] (🥇..🥋)    1st place medal..martial arts uniform
+            0x1F94C === code || // 10.0  [1] (🥌)       curling stone
+            (0x1F94D <= code && code <= 0x1F94F) || // 11.0  [3] (🥍..🥏)    lacrosse..flying disc
+            (0x1F950 <= code && code <= 0x1F95E) || //  9.0 [15] (🥐..🥞)    croissant..pancakes
+            (0x1F95F <= code && code <= 0x1F96B) || // 10.0 [13] (🥟..🥫)    dumpling..canned food
+            (0x1F96C <= code && code <= 0x1F970) || // 11.0  [5] (🥬..🥰)    leafy green..smiling face with 3 hearts
+            (0x1F971 <= code && code <= 0x1F972) || //   NA  [2] (🥱️..🥲️)    <reserved-1F971>..<reserved-1F972>
+            (0x1F973 <= code && code <= 0x1F976) || // 11.0  [4] (🥳..🥶)    partying face..cold face
+            (0x1F977 <= code && code <= 0x1F979) || //   NA  [3] (🥷️..🥹️)    <reserved-1F977>..<reserved-1F979>
+            0x1F97A === code || // 11.0  [1] (🥺)       pleading face
+            0x1F97B === code || //   NA  [1] (🥻️)       <reserved-1F97B>
+            (0x1F97C <= code && code <= 0x1F97F) || // 11.0  [4] (🥼..🥿)    lab coat..woman’s flat shoe
+            (0x1F980 <= code && code <= 0x1F984) || //  8.0  [5] (🦀..🦄)    crab..unicorn face
+            (0x1F985 <= code && code <= 0x1F991) || //  9.0 [13] (🦅..🦑)    eagle..squid
+            (0x1F992 <= code && code <= 0x1F997) || // 10.0  [6] (🦒..🦗)    giraffe..cricket
+            (0x1F998 <= code && code <= 0x1F9A2) || // 11.0 [11] (🦘..🦢)    kangaroo..swan
+            (0x1F9A3 <= code && code <= 0x1F9AF) || //   NA [13] (🦣️..🦯️)    <reserved-1F9A3>..<reserved-1F9AF>
+            (0x1F9B0 <= code && code <= 0x1F9B9) || // 11.0 [10] (🦰..🦹)    red-haired..supervillain
+            (0x1F9BA <= code && code <= 0x1F9BF) || //   NA  [6] (🦺️..🦿️)    <reserved-1F9BA>..<reserved-1F9BF>
+            0x1F9C0 === code || //  8.0  [1] (🧀)       cheese wedge
+            (0x1F9C1 <= code && code <= 0x1F9C2) || // 11.0  [2] (🧁..🧂)    cupcake..salt
+            (0x1F9C3 <= code && code <= 0x1F9CF) || //   NA [13] (🧃️..🧏️)    <reserved-1F9C3>..<reserved-1F9CF>
+            (0x1F9D0 <= code && code <= 0x1F9E6) || // 10.0 [23] (🧐..🧦)    face with monocle..socks
+            (0x1F9E7 <= code && code <= 0x1F9FF) || // 11.0 [25] (🧧..🧿)    red envelope..nazar amulet
+            (0x1FA00 <= code && code <= 0x1FA5F) || //   NA [96] (🨀️..🩟️)    <reserved-1FA00>..<reserved-1FA5F>
+            (0x1FA60 <= code && code <= 0x1FA6D) || // 11.0 [14] (🩠️..🩭️)    XIANGQI RED GENERAL..XIANGQI BLACK SOLDIER
+            (0x1FA6E <= code && code <= 0x1FFFD) //   NA[1424] (🩮️..🿽️)   <reserved-1FA6E>..<reserved-1FFFD>
+        ){
+            return Extended_Pictographic;
+        }
+
+        return Other;
+
     }
 }
