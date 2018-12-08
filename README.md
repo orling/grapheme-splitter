@@ -36,7 +36,7 @@ Enter the grapheme-splitter.js library. It can be used to properly split JavaScr
 
 # Installation
 
-You can use the index.js file directly as-is. Or you you can install `grapheme-splitter` to your project using the NPM command below:
+You can use the index.js file directly as-is. Or you can install `grapheme-splitter` to your project using the NPM command below:
 
 ```
 $ npm install --save grapheme-splitter
@@ -44,11 +44,7 @@ $ npm install --save grapheme-splitter
 
 # Tests
 
-To run the tests on `grapheme-splitter`, use the command below:
-
-```
-$ npm test
-```
+See [Contribution Guide](./CONTRIBUTING.md).
 
 # Usage
 
