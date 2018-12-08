@@ -16,8 +16,11 @@ const conditionTemplate = (codepoints) => {
     throw new Error(`Unexpected codepoints length: ${codepoints.length}`);
 };
 
-function processOneProperty(lines) {
+function processOneProperty(lines, categoryFilter) {
     const category = lines[0].split(";")[1].split("#")[0].trim();
+    if (!categoryFilter(category)) {
+        return "";
+    }
     const codes = [];
     for (let i = 0; i < lines.length; i++) {
         const isLast = (i === lines.length - 1);
@@ -52,9 +55,9 @@ function splitPropertyChunk(content) {
     return chunks;
 }
 
-function convert(content) {
-    const propertChunks = splitPropertyChunk(content);
-    return propertChunks.map(processOneProperty).join("");
+function convert(content, categoryFilter = () => true) {
+    const propertyChunks = splitPropertyChunk(content);
+    return propertyChunks.map((chunk) => processOneProperty(chunk, categoryFilter)).join("");
 }
 
 module.exports = convert;
