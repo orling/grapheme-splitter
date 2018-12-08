@@ -170,21 +170,21 @@ class GSHelper {
         }
 
         // GB10. (E_Base | EBG) Extend* ?	E_Modifier
-        const previousNonExtendIndex = all.indexOf(Extend) != -1 ? all.lastIndexOf(Extend) - 1 : all.length - 2;
-        if([E_Base, E_Base_GAZ].indexOf(all[previousNonExtendIndex]) != -1 &&
+        const previousNonExtendIndex = all.indexOf(Extend) !== -1 ? all.lastIndexOf(Extend) - 1 : all.length - 2;
+        if([E_Base, E_Base_GAZ].indexOf(all[previousNonExtendIndex]) !== -1 &&
             all.slice(previousNonExtendIndex + 1, -1).every(function(c){return c === Extend}) &&
             next === E_Modifier){
             return NotBreak;
         }
 
         // GB11. ZWJ ? (Glue_After_Zwj | EBG)
-        if(previous === ZWJ && [Glue_After_Zwj, E_Base_GAZ].indexOf(next) != -1) {
+        if(previous === ZWJ && [Glue_After_Zwj, E_Base_GAZ].indexOf(next) !== -1) {
             return NotBreak;
         }
 
         // GB12. ^ (RI RI)* RI ? RI
         // GB13. [^RI] (RI RI)* RI ? RI
-        if(mid.indexOf(Regional_Indicator) != -1) {
+        if(mid.indexOf(Regional_Indicator) !== -1) {
             return Break;
         }
         if(previous === Regional_Indicator && next === Regional_Indicator) {
