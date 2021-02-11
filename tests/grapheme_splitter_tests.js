@@ -1,7 +1,5 @@
-const fs = require('fs')
-const test = require('tape')
-
-const GraphemeSplitter = require('../index')
+import {readFileSync} from 'fs';
+import {graphemeIterator, splitGraphemes, countGraphemes} from '../index.js';
 
 function ucs2encode(array) {
   return array.map( value => {
@@ -22,7 +20,7 @@ function testDataFromLine(line) {
   const codePoints = line.split(/\s*[×÷]\s*/).map(c => parseInt(c, 16));
   const input = ucs2encode(codePoints);
 
-  const expected = line.split(/\s*÷\s*/) .map(sequence => {
+  const expected = line.split(/\s*÷\s*/).map(sequence => {
     const codePoints = sequence.split(/\s*×\s*/).map(c => parseInt(c, 16))
     return ucs2encode(codePoints)
   });
@@ -30,54 +28,46 @@ function testDataFromLine(line) {
   return { input, expected };
 }
 
-const testData = fs.readFileSync('tests/GraphemeBreakTest.txt', 'utf-8')
-                   .split('\n')
-                   .filter(line =>
-                     line != null && line.length > 0 && !line.startsWith('#'))
-                   .map(line => line.split('#')[0])
-                   .map(testDataFromLine);
+const testData = readFileSync('tests/GraphemeBreakTest.txt', 'utf-8')
+      .split('\n')
+      .filter(line =>
+        line != null && line.length > 0 && !line.startsWith('#'))
+      .map(line => line.split('#')[0])
+      .map(testDataFromLine);
 
 // ---------------------------------------------------------------------------
 // Test cases
 // ---------------------------------------------------------------------------
-test('splitGraphemes returns properly split list from string', t => {
-  const splitter = new GraphemeSplitter();
+const n_tests = testData.length;
+const valuefails = [];
+const countfails = [];
 
-  t.plan(testData.length);
+for (let i in testData) {
+  const {input, expected} = testData[i];
+  let [...results] = graphemeIterator(input)
+  const count = countGraphemes(input);
+  if (count !== expected.length)
+    countfails.push({casenum: i, result: count, expected: expected.length});
+  for (let j in results) {
+    if(results[j] !== expected[j]) {
+      valuefails.push({casenum: i, grapheme: i, result: results[j], expected: expected[j]});
+      break;
+    }
+  }
+}
 
-  testData.forEach( ({ input, expected }) => {
-    const result = splitter.splitGraphemes(input);
-    
-    t.deepLooseEqual(result, expected);
-  });
+if (valuefails.length !== 0)
+  for (const {casenum, grapheme, expected, result} of valuefails)
+    console.error (`iterateGraphemes: In case ${casenum}: expected`, expected, `at grapheme ${grapheme} but got`, result, `instead.`);
+if (countfails.length !== 0)
+  for (const {casenum, grapheme, expected, result} of valuefails)
+    console.error (`countGraphemes: In case ${casenum}: expected`, expected, `graphemes but got`, result, `instead.`);
 
-  t.end();
-});
-
-test('iterateGraphemes returns properly split iterator from string', t => {
-  const splitter = new GraphemeSplitter();
-
-  t.plan(testData.length);
-
-  testData.forEach( ({ input, expected }) => {
-    const result = splitter.iterateGraphemes(input);
-
-    t.deepLooseEqual([...result], expected);
-  });
-
-  t.end();
-});
-
-test('countGraphemes returns the correct number of graphemes in string', t => {
-  const splitter = new GraphemeSplitter();
-
-  t.plan(testData.length);
-
-  testData.forEach( ({ input, expected }) => {
-    const result = splitter.countGraphemes(input);
-
-    t.equal(result, expected.length);
-  });
-
-  t.end();
-});
+if (valuefails.length === 0 && countfails.length === 0) {
+  console.log(`All ${n_tests} tests passed.`)
+  process.exit(0);
+} else {
+  console.error(`iterateGraphemes: ${valuefails.length} of ${n_tests} failed.`)
+  console.error(`countGraphemes: ${countfails.length} of ${n_tests} failed.`)
+  process.exit(1);
+}
